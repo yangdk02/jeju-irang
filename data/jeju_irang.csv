@@ -1,0 +1,67 @@
+﻿place_id,place_name,category_level_2,city_name,legal_dong_name,region_group,road_address,latitude,longitude,phone,website_url,closed_days,opening_hours,free_parking,paid_parking,has_admission_fee,admission_fee,admission_fee_detail,has_age_limit,minimum_age,nursing_room,stroller_rental,reservation_url,space_type,resident_discount,diaper_changing_table,photo_url,description,review_summary
+P001,제주 키즈카페 1,키즈카페,제주시,애월읍,애월/한림,제주시 애월읍 1번길,33.44600000000001,126.779,064-737-4359,https://example.com/p1,없음,09:00-18:00,TRUE,TRUE,TRUE,18000,"성인 18,000원
+청소년 12,600원
+어린이 9,000원",FALSE,,TRUE,TRUE,https://example.com/reserve/1,실내,FALSE,TRUE,https://example.com/img/1.jpg,아이와 함께 방문하기 좋은 장소,
+P002,제주 박물관 2,박물관,제주시,애월읍,애월/한림,제주시 애월읍 2번길,33.445,126.796,064-237-7165,https://example.com/p2,없음,09:00-18:00,TRUE,FALSE,TRUE,6000,"성인 6,000원
+청소년 4,200원
+어린이 3,000원",TRUE,2,TRUE,TRUE,https://example.com/reserve/2,실내,FALSE,TRUE,https://example.com/img/2.jpg,아이와 함께 방문하기 좋은 장소,비 오는 날 추천
+P003,제주 체험 3,체험,서귀포시,표선면,성산/표선,서귀포시 표선면 3번길,33.371,126.524,064-968-5292,https://example.com/p3,없음,09:00-18:00,TRUE,TRUE,TRUE,4000,"성인 4,000원
+청소년 2,800원
+어린이 2,000원",FALSE,,TRUE,TRUE,https://example.com/reserve/3,실외,FALSE,FALSE,https://example.com/img/3.jpg,아이와 함께 방문하기 좋은 장소,아이들이 좋아해요
+P004,제주 놀이시설 4,놀이시설,제주시,한림읍,애월/한림,제주시 한림읍 4번길,33.28700000000001,126.269,064-270-4310,https://example.com/p4,없음,09:00-18:00,TRUE,FALSE,TRUE,4000,"성인 4,000원
+청소년 2,800원
+어린이 2,000원",TRUE,2,FALSE,TRUE,https://example.com/reserve/4,실외,FALSE,TRUE,https://example.com/img/4.jpg,아이와 함께 방문하기 좋은 장소,비 오는 날 추천
+P005,제주 키즈카페 5,키즈카페,서귀포시,대정읍,안덕/대정,서귀포시 대정읍 5번길,33.335,126.73,064-115-1553,https://example.com/p5,없음,09:00-18:00,FALSE,FALSE,TRUE,12000,"성인 12,000원
+청소년 8,400원
+어린이 6,000원",TRUE,3,TRUE,FALSE,https://example.com/reserve/5,실외,FALSE,TRUE,https://example.com/img/5.jpg,아이와 함께 방문하기 좋은 장소,아이들이 좋아해요
+P006,제주 박물관 6,박물관,서귀포시,성산읍,성산/표선,서귀포시 성산읍 6번길,33.42,126.51,064-299-7060,https://example.com/p6,없음,09:00-18:00,FALSE,FALSE,TRUE,6000,"성인 6,000원
+청소년 4,200원
+어린이 3,000원",FALSE,,FALSE,FALSE,https://example.com/reserve/6,실내,TRUE,FALSE,https://example.com/img/6.jpg,아이와 함께 방문하기 좋은 장소,비 오는 날 추천
+P007,제주 박물관 7,박물관,제주시,한림읍,애월/한림,제주시 한림읍 7번길,33.387,126.543,064-217-9156,https://example.com/p7,없음,09:00-18:00,FALSE,FALSE,FALSE,0,무료,FALSE,,TRUE,FALSE,https://example.com/reserve/7,실내,FALSE,FALSE,https://example.com/img/7.jpg,아이와 함께 방문하기 좋은 장소,가족 단위 방문 추천
+P008,제주 체험 8,체험,서귀포시,표선면,성산/표선,서귀포시 표선면 8번길,33.428,126.272,064-515-7362,https://example.com/p8,없음,09:00-18:00,TRUE,FALSE,TRUE,12000,"성인 12,000원
+청소년 8,400원
+어린이 6,000원",FALSE,,FALSE,TRUE,https://example.com/reserve/8,실외,FALSE,TRUE,https://example.com/img/8.jpg,아이와 함께 방문하기 좋은 장소,주차가 편리해요
+P009,제주 키즈카페 9,키즈카페,제주시,애월읍,애월/한림,제주시 애월읍 9번길,33.41800000000001,126.801,064-674-5524,https://example.com/p9,없음,09:00-18:00,TRUE,TRUE,TRUE,6000,"성인 6,000원
+청소년 4,200원
+어린이 3,000원",FALSE,,TRUE,FALSE,https://example.com/reserve/9,실외,FALSE,TRUE,https://example.com/img/9.jpg,아이와 함께 방문하기 좋은 장소,
+P010,제주 자연 10,자연,제주시,조천읍,구좌/조천,제주시 조천읍 10번길,33.411,126.386,064-452-3283,https://example.com/p10,없음,09:00-18:00,TRUE,FALSE,TRUE,4000,"성인 4,000원
+청소년 2,800원
+어린이 2,000원",TRUE,3,TRUE,FALSE,https://example.com/reserve/10,실내,TRUE,TRUE,https://example.com/img/10.jpg,아이와 함께 방문하기 좋은 장소,가족 단위 방문 추천
+P011,제주 박물관 11,박물관,서귀포시,서홍동,서귀포시,서귀포시 서홍동 11번길,33.421,126.823,064-168-8031,https://example.com/p11,없음,09:00-18:00,TRUE,FALSE,TRUE,18000,"성인 18,000원
+청소년 12,600원
+어린이 9,000원",FALSE,,FALSE,TRUE,https://example.com/reserve/11,실외,FALSE,TRUE,https://example.com/img/11.jpg,아이와 함께 방문하기 좋은 장소,아이들이 좋아해요
+P012,제주 체험 12,체험,서귀포시,서홍동,서귀포시,서귀포시 서홍동 12번길,33.454,126.448,064-182-8514,https://example.com/p12,없음,09:00-18:00,FALSE,FALSE,TRUE,6000,"성인 6,000원
+청소년 4,200원
+어린이 3,000원",TRUE,2,FALSE,FALSE,https://example.com/reserve/12,실내,FALSE,FALSE,https://example.com/img/12.jpg,아이와 함께 방문하기 좋은 장소,주차가 편리해요
+P013,제주 박물관 13,박물관,서귀포시,성산읍,성산/표선,서귀포시 성산읍 13번길,33.39700000000001,126.309,064-949-1104,https://example.com/p13,없음,09:00-18:00,TRUE,TRUE,TRUE,6000,"성인 6,000원
+청소년 4,200원
+어린이 3,000원",TRUE,5,TRUE,TRUE,https://example.com/reserve/13,실외,TRUE,FALSE,https://example.com/img/13.jpg,아이와 함께 방문하기 좋은 장소,주차가 편리해요
+P014,제주 박물관 14,박물관,서귀포시,성산읍,성산/표선,서귀포시 성산읍 14번길,33.46400000000001,126.444,064-579-6393,https://example.com/p14,없음,09:00-18:00,TRUE,FALSE,FALSE,0,무료,FALSE,,TRUE,TRUE,https://example.com/reserve/14,실외,TRUE,FALSE,https://example.com/img/14.jpg,아이와 함께 방문하기 좋은 장소,주차가 편리해요
+P015,제주 박물관 15,박물관,제주시,연동,제주시,제주시 연동 15번길,33.304,126.602,064-853-7920,https://example.com/p15,없음,09:00-18:00,TRUE,TRUE,TRUE,18000,"성인 18,000원
+청소년 12,600원
+어린이 9,000원",FALSE,,FALSE,TRUE,https://example.com/reserve/15,실내,FALSE,FALSE,https://example.com/img/15.jpg,아이와 함께 방문하기 좋은 장소,주차가 편리해요
+P016,제주 키즈카페 16,키즈카페,제주시,애월읍,애월/한림,제주시 애월읍 16번길,33.228,126.858,064-175-9735,https://example.com/p16,없음,09:00-18:00,FALSE,FALSE,TRUE,4000,"성인 4,000원
+청소년 2,800원
+어린이 2,000원",FALSE,,FALSE,FALSE,https://example.com/reserve/16,실외,FALSE,TRUE,https://example.com/img/16.jpg,아이와 함께 방문하기 좋은 장소,아이들이 좋아해요
+P017,제주 자연 17,자연,제주시,연동,제주시,제주시 연동 17번길,33.41500000000001,126.758,064-245-7246,https://example.com/p17,없음,09:00-18:00,FALSE,TRUE,TRUE,4000,"성인 4,000원
+청소년 2,800원
+어린이 2,000원",FALSE,,FALSE,FALSE,https://example.com/reserve/17,실내,FALSE,FALSE,https://example.com/img/17.jpg,아이와 함께 방문하기 좋은 장소,아이들이 좋아해요
+P018,제주 자연 18,자연,서귀포시,안덕면,안덕/대정,서귀포시 안덕면 18번길,33.447,126.342,064-649-6803,https://example.com/p18,없음,09:00-18:00,TRUE,TRUE,TRUE,18000,"성인 18,000원
+청소년 12,600원
+어린이 9,000원",TRUE,2,TRUE,TRUE,https://example.com/reserve/18,실내,FALSE,TRUE,https://example.com/img/18.jpg,아이와 함께 방문하기 좋은 장소,비 오는 날 추천
+P019,제주 자연 19,자연,서귀포시,표선면,성산/표선,서귀포시 표선면 19번길,33.33300000000001,126.487,064-847-1865,https://example.com/p19,없음,09:00-18:00,TRUE,FALSE,TRUE,4000,"성인 4,000원
+청소년 2,800원
+어린이 2,000원",TRUE,2,TRUE,TRUE,https://example.com/reserve/19,실외,FALSE,TRUE,https://example.com/img/19.jpg,아이와 함께 방문하기 좋은 장소,아이들이 좋아해요
+P020,제주 키즈카페 20,키즈카페,제주시,한림읍,애월/한림,제주시 한림읍 20번길,33.45800000000001,126.411,064-211-2836,https://example.com/p20,없음,09:00-18:00,TRUE,FALSE,TRUE,12000,"성인 12,000원
+청소년 8,400원
+어린이 6,000원",TRUE,3,FALSE,TRUE,https://example.com/reserve/20,실내,FALSE,FALSE,https://example.com/img/20.jpg,아이와 함께 방문하기 좋은 장소,비 오는 날 추천
+P021,제주 키즈카페 21,키즈카페,서귀포시,대정읍,안덕/대정,서귀포시 대정읍 21번길,33.488,126.362,064-410-4675,https://example.com/p21,없음,09:00-18:00,TRUE,TRUE,TRUE,4000,"성인 4,000원
+청소년 2,800원
+어린이 2,000원",TRUE,3,TRUE,FALSE,https://example.com/reserve/21,실외,TRUE,TRUE,https://example.com/img/21.jpg,아이와 함께 방문하기 좋은 장소,비 오는 날 추천
+P022,제주 놀이시설 22,놀이시설,서귀포시,대정읍,안덕/대정,서귀포시 대정읍 22번길,33.292,126.479,064-577-5521,https://example.com/p22,없음,09:00-18:00,TRUE,TRUE,TRUE,18000,"성인 18,000원
+청소년 12,600원
+어린이 9,000원",FALSE,,FALSE,FALSE,https://example.com/reserve/22,실외,TRUE,FALSE,https://example.com/img/22.jpg,아이와 함께 방문하기 좋은 장소,
+P023,제주 자연 23,자연,서귀포시,성산읍,성산/표선,서귀포시 성산읍 23번길,33.38800000000001,126.54,064-148-7968,https://example.com/p23,없음,09:00-18:00,FALSE,FALSE,TRUE,4000,"성인 4,000원
+청소년 2,800원
+어린이 2,000원",TRUE,5,TRUE,FALSE,https://example.com/reserve/23,실내,TRUE,FALSE,https://example.com/img/23.jpg,아이와 함께 방문하기 좋은 장소,아이들이 좋아해요
+P024,제주 자연 24,자연,제주시,구좌읍,구좌/조천,제주시 구좌읍 24번길,33.27,126.794,064-202-7359,https://example.com/p24,없음,09:00-18:00,TRUE,TRUE,FALSE,0,무료,FALSE,,FALSE,FALSE,https://example.com/reserve/24,실외,TRUE,TRUE,https://example.com/img/24.jpg,아이와 함께 방문하기 좋은 장소,
