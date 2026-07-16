@@ -149,7 +149,7 @@ st.markdown(
     }
     .brand-name {margin:0; font-size:2.1rem; font-weight:400; letter-spacing:-.035em; line-height:1; white-space:nowrap;}
     .st-key-brand_header {
-        margin-bottom:1rem; padding:1.15rem 1.55rem !important; border:0 !important;
+        margin-bottom:1rem; padding:1.35rem 1.55rem !important; border:0 !important;
         border-radius:22px; background:#fffdf8 !important;
         box-shadow:0 12px 30px rgba(73,56,47,.13) !important;
     }
@@ -159,26 +159,26 @@ st.markdown(
         border: 0 !important;
         box-shadow: 0 12px 30px rgba(73, 56, 47, .13) !important;
     }
-    .st-key-brand_header [data-testid="stHorizontalBlock"] {align-items:center !important; min-height:3.5rem;}
-    .st-key-brand_header [data-testid="stColumn"] {display:flex !important; align-items:center !important; min-height:3.5rem;}
+    .st-key-brand_header [data-testid="stHorizontalBlock"] {align-items:center !important; min-height:4rem;}
+    .st-key-brand_header [data-testid="stColumn"] {display:flex !important; align-items:center !important; min-height:4rem;}
     .st-key-brand_header [data-testid="stColumn"] > [data-testid="stVerticalBlock"] {
-        width:100%; min-height:3.5rem; justify-content:center !important;
+        width:100%; min-height:4rem; justify-content:center !important;
     }
     .st-key-brand_header [data-testid="stElementContainer"] {margin-top:0 !important; margin-bottom:0 !important;}
     .st-key-brand_header [data-testid="stColumn"]:first-child {position:relative;}
     .st-key-header_brand_link {
         position:absolute !important; left:0 !important; top:0 !important;
-        width:16rem !important; height:3.5rem !important; z-index:5; min-height:3.5rem;
+        width:16rem !important; height:4rem !important; z-index:5; min-height:4rem;
     }
     .st-key-header_brand_link .stButton, .st-key-header_brand_link button {
-        width:100% !important; height:100% !important; min-height:3.5rem !important;
+        width:100% !important; height:100% !important; min-height:4rem !important;
         padding:0 !important; margin:0 !important; opacity:0; cursor:pointer;
     }
     .st-key-brand_header [data-testid="stColumn"]:first-child:has(.st-key-header_brand_link):hover .brand-name {
         color:var(--jeju-orange-deep) !important;
     }
     .st-key-header_bookmarks .stButton > button {
-        min-height: 3.4rem;
+        min-height:4rem;
         padding: 0 .45rem !important;
         border: 0 !important;
         border-radius: 0 !important;
@@ -230,7 +230,7 @@ st.markdown(
         box-shadow:0 16px 42px rgba(73,56,47,.11) !important;
     }
     .welcome-copy {padding:2.3rem 1rem 1rem 1.6rem;}
-    .welcome-copy h2 {font-size:clamp(2.5rem,4.6vw,4rem); line-height:1.15; letter-spacing:-.04em; margin:.2rem 0 1rem; font-weight:400 !important;}
+    .welcome-copy h2 {font-size:clamp(2.5rem,4.6vw,4rem); line-height:1.15; letter-spacing:-.04em; margin:.2rem 0 1rem; font-weight:850 !important;}
     .welcome-copy p {font-size:1.1rem; line-height:1.7; color:var(--jeju-muted); margin:0 0 1.2rem;}
     .st-key-welcome_start_card [data-testid="stVerticalBlockBorderWrapper"] {
         background:#ffffff !important; border:0 !important; border-radius:20px !important;
@@ -240,7 +240,7 @@ st.markdown(
         padding:1rem !important; border:0 !important; border-radius:20px;
         background:#fff !important; box-shadow:0 8px 24px rgba(73,56,47,.10) !important;
     }
-    .st-key-welcome_start_card h3 {font-weight:400 !important;}
+    .st-key-welcome_start_card h3 {font-size:1.45rem !important; font-weight:850 !important;}
     .st-key-welcome_start_card [data-testid="stCaptionContainer"] {
         width:100%; text-align:center; margin-top:.15rem;
     }
@@ -260,6 +260,7 @@ st.markdown(
     .favorites-art {font-size:2.8rem; letter-spacing:.35rem; white-space:nowrap;}
     .favorites-title {font-family:'Pretendard',sans-serif !important; font-weight:850 !important;}
     .result-heading {display: flex; align-items: center; gap: .7rem; margin: 1.35rem 0 .7rem; font-size: 1.55rem; font-weight: 760;}
+    .search-result-heading {font-weight:850 !important;}
     .result-heading b {font-size:.85rem; color:var(--jeju-brown); background:var(--jeju-yellow-soft); border-radius:999px; padding:.35rem .65rem;}
     .region-title {font-size: 1.55rem; font-weight: 780; letter-spacing: -.035em; margin-bottom: .15rem;}
     .section-title {font-size: 1.45rem; font-weight: 760; color: var(--text-color); margin: .8rem 0 .3rem;}
@@ -336,7 +337,7 @@ st.markdown(
         margin:1rem 0 .75rem; padding:1.7rem 2rem; border-radius:22px; background:#fff;
         box-shadow:0 10px 28px rgba(73,56,47,.10);
     }
-    .detail-summary-card h1 {margin:0 0 .35rem; font-size:clamp(2rem,4vw,2.8rem);}
+    .detail-summary-card h1 {margin:0 0 .35rem; font-size:clamp(2rem,4vw,2.8rem); font-weight:850 !important;}
     .detail-title-line {
         display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;
     }
@@ -367,12 +368,12 @@ st.markdown(
     .st-key-detail_points, .st-key-detail_visit, .st-key-detail_map {
         min-height:442px; padding:1rem !important; border-radius:20px;
     }
-    .st-key-detail_points {background:var(--jeju-mint-soft) !important;}
-    .st-key-detail_visit {background:var(--jeju-yellow-soft) !important;}
-    .st-key-detail_map {background:var(--jeju-sky-soft) !important;}
+    div[data-testid="stVerticalBlock"].st-key-detail_points {background:#fff !important; border:1px solid var(--jeju-mint) !important;}
+    div[data-testid="stVerticalBlock"].st-key-detail_visit {background:#fff !important; border:1px solid var(--jeju-yellow) !important;}
+    div[data-testid="stVerticalBlock"].st-key-detail_map {background:#fff !important; border:1px solid var(--jeju-sky) !important;}
     .st-key-detail_points h3, .st-key-detail_visit h3, .st-key-detail_map h3 {
         margin:.1rem 0 .8rem !important; font-size:1.1rem !important;
-        line-height:1.35 !important; letter-spacing:-.02em !important;
+        line-height:1.35 !important; letter-spacing:-.02em !important; font-weight:850 !important;
     }
     .st-key-detail_map [data-testid="stDeckGlJsonChart"] {
         width:100% !important; height:auto !important; aspect-ratio:1 / 1 !important;
@@ -386,12 +387,12 @@ st.markdown(
     .spacer {height: 1.3rem;}
     [data-testid="stMetric"] {background:var(--jeju-mint-soft); border:0; border-radius:16px; padding:.8rem; box-shadow:0 6px 16px rgba(73,56,47,.07);}
     .st-key-search_filter_panel [data-testid="stVerticalBlockBorderWrapper"] {
-        background:linear-gradient(120deg,var(--jeju-sky-soft),var(--jeju-mint-soft)) !important;
-        border:0 !important; box-shadow:0 10px 28px rgba(73,56,47,.09) !important;
+        background:#effaf7 !important; border:1px solid #9dddc8 !important;
+        box-shadow:0 10px 28px rgba(73,56,47,.09) !important;
     }
-    .st-key-search_filter_panel {
-        padding:1rem !important; border:0 !important; border-radius:22px;
-        background:linear-gradient(120deg,var(--jeju-sky-soft),var(--jeju-mint-soft)) !important;
+    div[data-testid="stVerticalBlock"].st-key-search_filter_panel {
+        padding:1rem !important; border:1px solid #9dddc8 !important; border-radius:22px;
+        background:#effaf7 !important;
         box-shadow:0 10px 28px rgba(73,56,47,.09) !important;
     }
     .st-key-search_filter_panel [data-testid="stButtonGroup"] button {
@@ -429,7 +430,7 @@ st.markdown(
         border: none !important; color: var(--jeju-orange-deep) !important;
         transform: none !important; box-shadow: none !important;
     }
-    div[role="radiogroup"] {background:var(--jeju-sky-soft); border:0; border-radius:16px; padding:.35rem .7rem;}
+    div[role="radiogroup"] {background:transparent !important; border:0; border-radius:16px; padding:.35rem .7rem;}
     @media (max-width: 768px) {
         [data-testid="stAppViewBlockContainer"],
         .block-container {padding-top: 4.5rem;}
@@ -1143,7 +1144,7 @@ def render_list(places: pd.DataFrame) -> None:
 
         parking_col, feature_col = st.columns([1, 2])
         with parking_col:
-            st.markdown("**주차** · 하나 이상 일치 (OR)")
+            st.markdown("**주차** · 여러 개 선택 가능")
             st.session_state.parking_filter = st.pills(
                 "주차 유형 (OR)",
                 list(PARKING_FILTERS),
@@ -1205,7 +1206,7 @@ def render_list(places: pd.DataFrame) -> None:
         st.markdown(" ".join(f'<span class="tag">{label}</span>' for label in labels), unsafe_allow_html=True)
 
     st.markdown(
-        f'<div class="result-heading"><span>{title}</span><b>{len(filtered):,}곳</b></div>',
+        f'<div class="result-heading search-result-heading"><span>{title}</span><b>{len(filtered):,}곳</b></div>',
         unsafe_allow_html=True,
     )
 
