@@ -5,8 +5,10 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import streamlit as st
+from streamlit_geolocation import streamlit_geolocation
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -186,6 +188,10 @@ def initialize_state() -> None:
         "parking_filter": [],
         "feature_filter": [],
         "sort_order": "기본순",
+        "user_latitude": None,
+        "user_longitude": None,
+        "user_location_accuracy": None,
+        "ignore_location_result": False,
         "nickname": "",
         "bookmark_lookup": "",
     }
@@ -264,6 +270,15 @@ def display_tags(place: pd.Series, include_region: bool = True) -> str:
     return "".join(f'<span class="tag">{value}</span>' for value in values if value)
 
 
+def format_distance(distance_km: object) -> str:
+    if pd.isna(distance_km):
+        return ""
+    distance = float(distance_km)
+    if distance < 1:
+        return f"약 {max(1, round(distance * 1000)):,}m"
+    return f"약 {distance:.1f}km"
+
+
 def render_place_grid(frame: pd.DataFrame, key_prefix: str, columns: int = 3) -> None:
     for start in range(0, len(frame), columns):
         row_columns = st.columns(columns)
@@ -275,6 +290,8 @@ def render_place_grid(frame: pd.DataFrame, key_prefix: str, columns: int = 3) ->
                     for part in [clean_text(place.get("city_name"), ""), clean_text(place.get("legal_dong_name"), "")]
                     if part
                 )
+                distance = format_distance(place.get("_distance_km"))
+                distance_line = f"<p>🧭 현재 위치에서 {distance}</p>" if distance else ""
                 st.markdown(
                     f"""
                     <div class="place-card">
@@ -282,6 +299,7 @@ def render_place_grid(frame: pd.DataFrame, key_prefix: str, columns: int = 3) ->
                         <h3>{clean_text(place.get('place_name'))}</h3>
                         <p>{description}</p>
                         <p>📍 {location or '위치 정보 없음'}</p>
+                        {distance_line}
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -354,11 +372,90 @@ def filter_places(places: pd.DataFrame) -> pd.DataFrame:
             # Free venues must not appear in resident-discount results.
             result = result[result["has_admission_fee"].fillna(False)]
 
-    if st.session_state.sort_order == "장소명순 (가나다)":
+    user_lat = st.session_state.user_latitude
+    user_lon = st.session_state.user_longitude
+    if user_lat is not None and user_lon is not None:
+        result = add_distances(result, float(user_lat), float(user_lon))
+
+    if st.session_state.sort_order == "거리순" and "_distance_km" in result.columns:
+        result = result.sort_values("_distance_km", ascending=True, kind="stable", na_position="last")
+    elif st.session_state.sort_order == "장소명순 (가나다)":
         result = result.sort_values("place_name", ascending=True, kind="stable", na_position="last")
     else:
         result = result.sort_values("_data_order", kind="stable")
     return result
+
+
+def add_distances(frame: pd.DataFrame, user_lat: float, user_lon: float) -> pd.DataFrame:
+    """Calculate straight-line distance in kilometres with the Haversine formula."""
+    result = frame.copy()
+    latitudes = pd.to_numeric(result["latitude"], errors="coerce")
+    longitudes = pd.to_numeric(result["longitude"], errors="coerce")
+    lat1 = np.radians(user_lat)
+    lon1 = np.radians(user_lon)
+    lat2 = np.radians(latitudes)
+    lon2 = np.radians(longitudes)
+    delta_lat = lat2 - lat1
+    delta_lon = lon2 - lon1
+    haversine = (
+        np.sin(delta_lat / 2) ** 2
+        + np.cos(lat1) * np.cos(lat2) * np.sin(delta_lon / 2) ** 2
+    )
+    result["_distance_km"] = 6371.0088 * 2 * np.arcsin(np.sqrt(haversine.clip(0, 1)))
+    return result
+
+
+def valid_location(location: object) -> bool:
+    if not isinstance(location, dict):
+        return False
+    latitude = location.get("latitude")
+    longitude = location.get("longitude")
+    try:
+        return -90 <= float(latitude) <= 90 and -180 <= float(longitude) <= 180
+    except (TypeError, ValueError):
+        return False
+
+
+def forget_location() -> None:
+    st.session_state.user_latitude = None
+    st.session_state.user_longitude = None
+    st.session_state.user_location_accuracy = None
+    st.session_state.ignore_location_result = True
+    if st.session_state.sort_order == "거리순":
+        st.session_state.sort_order = "기본순"
+        widget_key = "_sort_order_widget"
+        if widget_key in st.session_state:
+            st.session_state[widget_key] = "기본순"
+
+
+def reuse_location() -> None:
+    st.session_state.ignore_location_result = False
+
+
+def render_location_control() -> None:
+    st.markdown("#### 내 위치")
+    st.caption("아래 위치 버튼을 누르면 거리순 정렬을 사용할 수 있어요.")
+    location = streamlit_geolocation()
+
+    if valid_location(location) and not st.session_state.ignore_location_result:
+        st.session_state.user_latitude = float(location["latitude"])
+        st.session_state.user_longitude = float(location["longitude"])
+        accuracy = location.get("accuracy")
+        st.session_state.user_location_accuracy = (
+            float(accuracy) if accuracy is not None and pd.notna(accuracy) else None
+        )
+
+    if st.session_state.user_latitude is not None:
+        accuracy = st.session_state.user_location_accuracy
+        accuracy_text = f" · 정확도 약 {accuracy:.0f}m" if accuracy is not None else ""
+        st.success(f"현재 위치를 확인했어요{accuracy_text}.")
+        st.caption("위치는 이 브라우저 세션에서 거리 계산에만 사용하며 파일에 저장하지 않습니다.")
+        st.button("위치 정보 지우기", use_container_width=True, on_click=forget_location)
+    elif st.session_state.ignore_location_result and valid_location(location):
+        st.info("현재 위치 사용을 중지했습니다.")
+        st.button("위치 다시 사용", use_container_width=True, on_click=reuse_location)
+    else:
+        st.caption("권한 요청이 나타나면 ‘허용’을 선택하세요. 배포 환경에서는 HTTPS가 필요합니다.")
 
 
 def active_filter_labels() -> list[str]:
@@ -377,6 +474,8 @@ def active_filter_labels() -> list[str]:
 def render_list(places: pd.DataFrame) -> None:
     with st.sidebar:
         st.title("장소 찾기")
+        render_location_control()
+        st.divider()
         st.session_state.selected_region = st.selectbox(
             "지역",
             REGIONS,
@@ -410,9 +509,11 @@ def render_list(places: pd.DataFrame) -> None:
         )
         st.session_state.sort_order = st.selectbox(
             "정렬",
-            ["기본순", "장소명순 (가나다)"],
+            ["기본순", "장소명순 (가나다)", "거리순"],
             key=prepare_filter_widget("sort_order"),
         )
+        if st.session_state.sort_order == "거리순" and st.session_state.user_latitude is None:
+            st.warning("거리순을 사용하려면 위의 위치 버튼을 눌러 주세요.")
         st.button("전체 조건 초기화", use_container_width=True, on_click=reset_filters)
         st.divider()
         st.button("처음 화면", use_container_width=True, on_click=go_to, args=("home",))
