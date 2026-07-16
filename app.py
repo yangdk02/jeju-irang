@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import time
 from datetime import datetime
+from html import escape
 from pathlib import Path
 
 import numpy as np
@@ -35,14 +36,20 @@ PASSWORD_ITERATIONS = 200_000
 
 REGIONS = ["전체", "구좌/조천", "서귀포시", "성산/표선", "안덕/대정", "애월/한림", "제주시"]
 FEATURE_FILTERS = {
-    "입장료 있음": "has_admission_fee",
-    "연령제한 있음": "has_age_limit",
-    "수유실 있음": "nursing_room",
-    "유모차 대여 가능": "stroller_rental",
-    "기저귀 교환대 있음": "diaper_changing_table",
-    "도민 할인 있음": "resident_discount",
+    "입장료 없음": ("has_admission_fee", False),
+    "연령제한 없음": ("has_age_limit", False),
+    "수유실 있음": ("nursing_room", True),
+    "유모차 대여 가능": ("stroller_rental", True),
+    "기저귀 교환대 있음": ("diaper_changing_table", True),
+    "도민 할인 있음": ("resident_discount", True),
 }
-BOOL_COLUMNS = list(FEATURE_FILTERS.values())
+PARKING_FILTERS = {
+    "무료 주차 가능": ("무료", "무료/유료 주차"),
+    "유료 주차 가능": ("유료", "무료/유료 주차"),
+    "무료·유료 모두 운영": ("무료/유료 주차",),
+    "주차 불가": ("주차 불가",),
+}
+BOOL_COLUMNS = list(dict.fromkeys(column for column, _ in FEATURE_FILTERS.values()))
 
 
 st.set_page_config(
@@ -55,24 +62,50 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
     :root {
-        --jeju-orange: #ff8a00;
-        --jeju-orange-deep: #ef6c00;
-        --jeju-mint: #65c7a5;
-        --jeju-sky: #65bde8;
-        --jeju-surface: color-mix(in srgb, var(--background-color) 97%, #fff8ec 3%);
-        --jeju-soft-surface: color-mix(in srgb, var(--secondary-background-color) 82%, #fff8ec 18%);
-        --jeju-accent-soft: color-mix(in srgb, var(--jeju-orange) 12%, var(--background-color) 88%);
-        --jeju-mint-soft: color-mix(in srgb, var(--jeju-mint) 13%, var(--background-color) 87%);
-        --jeju-sky-soft: color-mix(in srgb, var(--jeju-sky) 13%, var(--background-color) 87%);
-        --jeju-border: color-mix(in srgb, var(--jeju-orange) 18%, var(--text-color) 10%);
-        --jeju-muted: color-mix(in srgb, var(--text-color) 66%, transparent);
+        --jeju-ivory: #fff9f0;
+        --jeju-orange: #ff9f1c;
+        --jeju-orange-soft: #ffe2b8;
+        --jeju-orange-deep: #e97e00;
+        --jeju-yellow: #ffd166;
+        --jeju-yellow-soft: #fff1c7;
+        --jeju-mint: #82d4b7;
+        --jeju-mint-soft: #ddf5ec;
+        --jeju-sky: #79cfe3;
+        --jeju-sky-soft: #ddf4f8;
+        --jeju-pink: #f7b6c8;
+        --jeju-pink-soft: #fce3ea;
+        --jeju-brown: #49382f;
+        --jeju-surface: #ffffff;
+        --jeju-soft-surface: var(--jeju-ivory);
+        --jeju-accent-soft: var(--jeju-orange-soft);
+        --jeju-border: transparent;
+        --jeju-muted: #796b63;
+    }
+    html, body, [data-testid="stApp"], [data-testid="stApp"] * {
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    [data-testid="stIconMaterial"], .material-symbols-rounded, .material-symbols-outlined {
+        font-family:'Material Symbols Rounded','Material Symbols Outlined' !important;
+        font-weight:normal !important; font-style:normal !important; font-size:24px !important;
+        line-height:1; letter-spacing:normal; text-transform:none; white-space:nowrap;
+        word-wrap:normal; direction:ltr; -webkit-font-feature-settings:'liga';
+        -webkit-font-smoothing:antialiased;
+    }
+    [data-testid="stApp"] {color:var(--jeju-brown);}
+    h1, h2, h3, .page-title, .region-title, .section-title, .result-heading,
+    .welcome-copy h2, .brand-name {
+        font-family:'Jua', 'Pretendard', sans-serif !important;
+        font-weight:400 !important;
+        color:var(--jeju-brown) !important;
     }
     [data-testid="stApp"] {
         background:
             radial-gradient(circle at 8% 4%, color-mix(in srgb, #ffd89b 16%, transparent), transparent 28%),
             radial-gradient(circle at 92% 18%, color-mix(in srgb, #bcebdc 12%, transparent), transparent 25%),
-            var(--background-color);
+            var(--jeju-ivory);
     }
     header[data-testid="stHeader"] {background: transparent;}
     [data-testid="stAppViewBlockContainer"],
@@ -88,21 +121,83 @@ st.markdown(
     }
     [data-testid="stSidebarContent"] {padding-top: 1.2rem;}
     [data-testid="stVerticalBlockBorderWrapper"] {
-        border-color: var(--jeju-border) !important;
+        border: 0 !important;
         border-radius: 22px !important;
-        background: color-mix(in srgb, var(--jeju-surface) 94%, transparent);
-        box-shadow: 0 8px 26px color-mix(in srgb, #8d6335 9%, transparent);
+        background: var(--jeju-surface);
+        box-shadow: 0 10px 30px rgba(73, 56, 47, .10);
     }
+    div[data-testid="stVerticalBlock"][class*="st-key-"] {border:0 !important;}
     .brand {
-        display: flex; align-items: center; gap: .75rem; min-height: 2.7rem;
+        display: flex; align-items: center; gap: .75rem; min-height: 3.4rem;
     }
     .brand-mark {
-        display: grid; place-items: center; width: 2.7rem; height: 2.7rem;
-        border-radius: 50%; background: var(--jeju-orange); font-size: 1.45rem;
+        position:relative; display:block; flex:0 0 auto; width:2.7rem; height:2.7rem;
+        border-radius:48% 52% 50% 50%;
+        background:
+            radial-gradient(circle at 32% 34%, #fff 0 2px, transparent 3px),
+            radial-gradient(circle at 55% 24%, #fff 0 1.5px, transparent 2.5px),
+            var(--jeju-orange);
         box-shadow: 0 5px 14px color-mix(in srgb, var(--jeju-orange) 30%, transparent);
     }
-    .brand h1 {margin: 0; color: var(--text-color); font-size: 1.75rem; letter-spacing: -.05em;}
-    .nav-divider {text-align: center; color: var(--jeju-border); font-size: 1.25rem; line-height: 2.5rem;}
+    .brand-mark::before {
+        content:""; position:absolute; width:1rem; height:.52rem; right:-.05rem; top:-.32rem;
+        border-radius:100% 0 100% 0; background:var(--jeju-mint); transform:rotate(-20deg);
+    }
+    .brand-mark::after {
+        content:"≈"; position:absolute; right:-.72rem; bottom:-.58rem;
+        color:var(--jeju-sky); font-family:Arial,sans-serif; font-size:1.45rem; font-weight:900;
+    }
+    .brand-name {margin:0; font-size:2.1rem; font-weight:400; letter-spacing:-.035em; line-height:1; white-space:nowrap;}
+    .st-key-brand_header {
+        margin-bottom:1rem; padding:1.15rem 1.55rem !important; border:0 !important;
+        border-radius:22px; background:#fffdf8 !important;
+        box-shadow:0 12px 30px rgba(73,56,47,.13) !important;
+    }
+    .st-key-brand_header [data-testid="stVerticalBlockBorderWrapper"] {
+        padding: 1.15rem 1.55rem !important;
+        background:#fffdf8 !important;
+        border: 0 !important;
+        box-shadow: 0 12px 30px rgba(73, 56, 47, .13) !important;
+    }
+    .st-key-brand_header [data-testid="stHorizontalBlock"] {align-items:center !important; min-height:3.5rem;}
+    .st-key-brand_header [data-testid="stColumn"] {display:flex !important; align-items:center !important; min-height:3.5rem;}
+    .st-key-brand_header [data-testid="stColumn"] > [data-testid="stVerticalBlock"] {
+        width:100%; min-height:3.5rem; justify-content:center !important;
+    }
+    .st-key-brand_header [data-testid="stElementContainer"] {margin-top:0 !important; margin-bottom:0 !important;}
+    .st-key-brand_header [data-testid="stColumn"]:first-child {position:relative;}
+    .st-key-header_brand_link {
+        position:absolute !important; left:0 !important; top:0 !important;
+        width:16rem !important; height:3.5rem !important; z-index:5; min-height:3.5rem;
+    }
+    .st-key-header_brand_link .stButton, .st-key-header_brand_link button {
+        width:100% !important; height:100% !important; min-height:3.5rem !important;
+        padding:0 !important; margin:0 !important; opacity:0; cursor:pointer;
+    }
+    .st-key-brand_header [data-testid="stColumn"]:first-child:has(.st-key-header_brand_link):hover .brand-name {
+        color:var(--jeju-orange-deep) !important;
+    }
+    .st-key-header_bookmarks .stButton > button {
+        min-height: 3.4rem;
+        padding: 0 .45rem !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: var(--jeju-brown) !important;
+        font-family:'Pretendard',sans-serif !important;
+        font-size:1.05rem !important;
+        font-weight:750 !important;
+    }
+    .st-key-header_bookmarks .stButton > button p {
+        font-family:'Pretendard',sans-serif !important;
+        font-size:1.05rem !important; font-weight:750 !important; line-height:1.2 !important;
+    }
+    .st-key-header_bookmarks .stButton > button:hover,
+    .st-key-header_bookmarks .stButton > button:focus {
+        color: var(--jeju-orange-deep) !important;
+        background: transparent !important;
+    }
     .home-hero {
         position: relative; overflow: hidden; padding: 3.2rem 3.4rem; border-radius: 30px;
         background: linear-gradient(
@@ -125,43 +220,198 @@ st.markdown(
     }
     .home-hero h2 {margin: .55rem 0 .75rem; max-width: 650px; font-size: clamp(2.25rem, 5vw, 4.1rem); letter-spacing: -.055em; line-height: 1.12; color: var(--text-color);}
     .home-hero p {margin: 0; max-width: 560px; color: var(--jeju-muted); font-size: 1.12rem; line-height: 1.75;}
+    .st-key-welcome_hero [data-testid="stVerticalBlockBorderWrapper"] {
+        background:#fffdf8 !important; overflow:hidden; padding:1.1rem 1.2rem !important;
+        border:0 !important; box-shadow:0 16px 42px rgba(73,56,47,.11) !important;
+    }
+    .st-key-welcome_hero {
+        padding:1.1rem 1.2rem !important; overflow:hidden; border:0 !important;
+        border-radius:22px; background:#fffdf8 !important;
+        box-shadow:0 16px 42px rgba(73,56,47,.11) !important;
+    }
+    .welcome-copy {padding:2.3rem 1rem 1rem 1.6rem;}
+    .welcome-copy h2 {font-size:clamp(2.5rem,4.6vw,4rem); line-height:1.15; letter-spacing:-.04em; margin:.2rem 0 1rem; font-weight:400 !important;}
+    .welcome-copy p {font-size:1.1rem; line-height:1.7; color:var(--jeju-muted); margin:0 0 1.2rem;}
+    .st-key-welcome_start_card [data-testid="stVerticalBlockBorderWrapper"] {
+        background:#ffffff !important; border:0 !important; border-radius:20px !important;
+        box-shadow:0 8px 24px rgba(73,56,47,.10) !important;
+    }
+    .st-key-welcome_start_card {
+        padding:1rem !important; border:0 !important; border-radius:20px;
+        background:#fff !important; box-shadow:0 8px 24px rgba(73,56,47,.10) !important;
+    }
+    .st-key-welcome_start_card h3 {font-weight:400 !important;}
+    .st-key-welcome_start_card [data-testid="stCaptionContainer"] {
+        width:100%; text-align:center; margin-top:.15rem;
+    }
+    .welcome-visual {position:relative; min-height:490px; overflow:hidden; border-radius:22px; background:linear-gradient(155deg,#ddf4f8 0 40%,#fff1c7 40% 65%,#ddf5ec 65%);}
+    .welcome-mountain {position:absolute;width:370px;height:190px;left:12%;top:100px;background:#80b990;clip-path:polygon(50% 0,100% 100%,0 100%);opacity:.92;}
+    .welcome-sea {position:absolute;left:0;right:0;bottom:0;height:42%;background:linear-gradient(#79cfe3,#aee7ef);}
+    .welcome-family {position:absolute;z-index:2;right:9%;bottom:58px;font-size:9rem;filter:drop-shadow(0 12px 8px #49382f18);}
+    .welcome-fruit {position:absolute;z-index:3;left:10%;bottom:32px;font-size:3.8rem;}
+    .welcome-flower {position:absolute;z-index:3;right:4%;bottom:26px;font-size:4.5rem;}
     .page-title {font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; letter-spacing: -.045em; margin: .25rem 0 .3rem; color: var(--text-color);}
+    .search-page-title {
+        font-family:'Pretendard',sans-serif !important; font-weight:850 !important;
+        letter-spacing:-.045em;
+    }
+    .favorites-intro {display:flex; align-items:flex-end; justify-content:space-between; gap:2rem; padding:2rem .5rem 1.3rem;}
+    .favorites-intro p {margin:.2rem 0 0; color:var(--jeju-muted);}
+    .favorites-art {font-size:2.8rem; letter-spacing:.35rem; white-space:nowrap;}
+    .favorites-title {font-family:'Pretendard',sans-serif !important; font-weight:850 !important;}
     .result-heading {display: flex; align-items: center; gap: .7rem; margin: 1.35rem 0 .7rem; font-size: 1.55rem; font-weight: 760;}
-    .result-heading b {font-size: .85rem; color: var(--jeju-orange-deep); background: var(--jeju-accent-soft); border-radius: 999px; padding: .35rem .65rem;}
+    .result-heading b {font-size:.85rem; color:var(--jeju-brown); background:var(--jeju-yellow-soft); border-radius:999px; padding:.35rem .65rem;}
     .region-title {font-size: 1.55rem; font-weight: 780; letter-spacing: -.035em; margin-bottom: .15rem;}
     .section-title {font-size: 1.45rem; font-weight: 760; color: var(--text-color); margin: .8rem 0 .3rem;}
     [data-testid="stImage"] img {
         aspect-ratio: 16 / 9; object-fit: cover; border-radius: 20px;
-        border: 1px solid var(--jeju-border);
-        box-shadow: 0 8px 20px color-mix(in srgb, #7d5e40 10%, transparent);
+        border:0;
+        box-shadow:0 8px 22px rgba(73,56,47,.10);
     }
     .photo-placeholder {
         display: grid; place-items: center; aspect-ratio: 16 / 9; border-radius: 20px 20px 0 0;
         background: linear-gradient(135deg, var(--jeju-sky-soft), var(--jeju-mint-soft));
-        border: 1px solid var(--jeju-border); font-size: 3rem;
+        border:0; font-size: 3rem;
+        box-shadow:0 8px 22px rgba(73,56,47,.10);
     }
     .place-card {
-        min-height: 165px; padding: 1.1rem 1.15rem; border: 1px solid var(--jeju-border);
+        min-height:165px; padding:1.1rem 1.15rem; border:0;
         border-radius: 20px; background: var(--jeju-surface);
-        box-shadow: 0 8px 24px color-mix(in srgb, #7d5e40 10%, transparent);
+        box-shadow:0 10px 26px rgba(73,56,47,.10);
     }
     .place-card h3 {margin: .35rem 0 .45rem; font-size: 1.22rem; color: var(--text-color); letter-spacing: -.025em;}
     .place-card p {margin: .25rem 0; color: var(--jeju-muted); font-size: .91rem;}
-    .facility-line {margin-top: .7rem !important; color: color-mix(in srgb, var(--jeju-mint) 76%, var(--text-color)) !important; font-weight: 650;}
+    .favorite-card {min-height:175px; background:linear-gradient(145deg,#fff,var(--jeju-pink-soft));}
+    div[data-testid="stVerticalBlock"][class*="st-key-place_card_"],
+    div[data-testid="stVerticalBlock"][class*="st-key-favorite_card_"] {
+        min-height:180px; padding:1rem 1.1rem !important; border-radius:20px;
+        background:#fff; box-shadow:0 10px 26px rgba(73,56,47,.10);
+        gap:.3rem !important;
+    }
+    div[class*="st-key-place_name_"],
+    div[class*="st-key-favorite_name_"] {
+        min-height:3.5rem; display:flex; align-items:center; margin:0 !important;
+        position:relative; transform:translateY(.55rem); z-index:1;
+    }
+    div[class*="st-key-place_name_"] button,
+    div[class*="st-key-favorite_name_"] button {
+        justify-content:flex-start !important; width:100%; padding:.45rem 0 .35rem !important;
+        color:var(--jeju-brown) !important; font-family:'Pretendard',sans-serif !important;
+        font-size:1.5rem !important; font-weight:850 !important; line-height:1.25 !important;
+        text-align:left !important;
+    }
+    div[class*="st-key-place_name_"] button p,
+    div[class*="st-key-favorite_name_"] button p {
+        font-family:'Pretendard',sans-serif !important; font-size:1.5rem !important;
+        font-weight:850 !important; line-height:1.25 !important; text-align:left !important;
+    }
+    div[class*="st-key-place_name_"] button:hover,
+    div[class*="st-key-favorite_name_"] button:hover {
+        color:var(--jeju-orange-deep) !important; text-decoration:underline;
+    }
+    .place-card-copy p {margin:.25rem 0; color:var(--jeju-muted); font-size:.91rem;}
+    .saved-at {color:color-mix(in srgb, var(--jeju-pink) 60%, var(--text-color)) !important; font-size:.82rem !important;}
     .tag {
-        display: inline-block; background: var(--jeju-accent-soft); color: var(--text-color);
-        border: 1px solid color-mix(in srgb, var(--jeju-orange) 22%, var(--jeju-border)); border-radius: 999px;
+        display:inline-block; background:var(--jeju-mint-soft); color:var(--jeju-brown);
+        border:0; border-radius:999px;
         padding: .22rem .58rem; margin: .1rem .18rem .1rem 0; font-size: .8rem;
     }
     .info-box {
-        padding: 1rem 1.1rem; border-radius: 16px; background: var(--jeju-soft-surface);
-        border: 1px solid var(--jeju-border); margin-bottom: .6rem;
+        padding:1rem 1.1rem; border-radius:16px; background:var(--jeju-sky-soft);
+        border:0; margin-bottom:.6rem; box-shadow:0 6px 18px rgba(73,56,47,.07);
     }
     .info-label {color: var(--jeju-muted); font-size: .84rem; margin-bottom: .22rem;}
     .info-value {color: var(--text-color); white-space: pre-wrap; overflow-wrap: anywhere;}
+    .st-key-detail_photo [data-testid="stImage"] img {
+        width:100%; height:360px; aspect-ratio:auto; object-fit:cover; border-radius:24px;
+        box-shadow:0 12px 30px rgba(73,56,47,.12);
+    }
+    .detail-photo-placeholder {
+        width:100%; height:360px; display:grid; place-items:center; border-radius:24px;
+        background:linear-gradient(135deg,var(--jeju-sky-soft),var(--jeju-mint-soft));
+        color:var(--jeju-brown); font-weight:900; font-size:clamp(1.2rem,2.5vw,2rem);
+        letter-spacing:.12em; box-shadow:0 12px 30px rgba(73,56,47,.10);
+    }
+    .detail-summary-card {
+        margin:1rem 0 .75rem; padding:1.7rem 2rem; border-radius:22px; background:#fff;
+        box-shadow:0 10px 28px rgba(73,56,47,.10);
+    }
+    .detail-summary-card h1 {margin:0 0 .35rem; font-size:clamp(2rem,4vw,2.8rem);}
+    .detail-title-line {
+        display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;
+    }
+    .detail-actions {display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;}
+    .detail-mini-link {
+        display:inline-flex; align-items:center; gap:.3rem; padding:.5rem .75rem;
+        border-radius:999px; background:var(--jeju-yellow-soft); color:var(--jeju-brown) !important;
+        text-decoration:none !important; font-size:.86rem; font-weight:800;
+        box-shadow:0 4px 12px rgba(73,56,47,.08); transition:transform .15s ease;
+    }
+    .detail-mini-link.reserve {background:var(--jeju-pink-soft);}
+    .detail-mini-link:hover {transform:translateY(-1px);}
+    .detail-description {margin:.15rem 0 1rem; color:var(--jeju-muted); font-size:1.05rem;}
+    .detail-tags {margin-bottom:.7rem;}
+    .detail-core-row {
+        display:grid; grid-template-columns:2rem 6rem minmax(0,1fr); gap:.5rem;
+        align-items:start; padding:.72rem 0; border-bottom:1px solid #f3ece4;
+    }
+    .detail-core-row:last-child {border-bottom:0;}
+    .detail-core-row b {font-size:.92rem;}
+    .detail-core-row span:last-child {color:#6f6056; white-space:pre-wrap; overflow-wrap:anywhere;}
+    .detail-check {margin:.55rem 0; color:#68584f; line-height:1.5;}
+    .detail-check::before {
+        content:"✓"; display:inline-grid; place-items:center; width:1.3rem; height:1.3rem;
+        margin-right:.5rem; border-radius:50%; background:var(--jeju-mint); color:#fff;
+        font-size:.72rem; font-weight:900;
+    }
+    .st-key-detail_points, .st-key-detail_visit, .st-key-detail_map {
+        min-height:442px; padding:1rem !important; border-radius:20px;
+    }
+    .st-key-detail_points {background:var(--jeju-mint-soft) !important;}
+    .st-key-detail_visit {background:var(--jeju-yellow-soft) !important;}
+    .st-key-detail_map {background:var(--jeju-sky-soft) !important;}
+    .st-key-detail_points h3, .st-key-detail_visit h3, .st-key-detail_map h3 {
+        margin:.1rem 0 .8rem !important; font-size:1.1rem !important;
+        line-height:1.35 !important; letter-spacing:-.02em !important;
+    }
+    .st-key-detail_map [data-testid="stDeckGlJsonChart"] {
+        width:100% !important; height:auto !important; aspect-ratio:1 / 1 !important;
+        overflow:hidden; border-radius:14px;
+    }
+    .st-key-detail_map [data-testid="stDeckGlJsonChart"] > div,
+    .st-key-detail_map [data-testid="stDeckGlJsonChart"] canvas {
+        width:100% !important; height:100% !important;
+    }
     .muted {color: var(--jeju-muted);}
     .spacer {height: 1.3rem;}
-    [data-testid="stMetric"] {background: var(--jeju-mint-soft); border: 1px solid color-mix(in srgb, var(--jeju-mint) 35%, var(--jeju-border)); border-radius: 16px; padding: .8rem;}
+    [data-testid="stMetric"] {background:var(--jeju-mint-soft); border:0; border-radius:16px; padding:.8rem; box-shadow:0 6px 16px rgba(73,56,47,.07);}
+    .st-key-search_filter_panel [data-testid="stVerticalBlockBorderWrapper"] {
+        background:linear-gradient(120deg,var(--jeju-sky-soft),var(--jeju-mint-soft)) !important;
+        border:0 !important; box-shadow:0 10px 28px rgba(73,56,47,.09) !important;
+    }
+    .st-key-search_filter_panel {
+        padding:1rem !important; border:0 !important; border-radius:22px;
+        background:linear-gradient(120deg,var(--jeju-sky-soft),var(--jeju-mint-soft)) !important;
+        box-shadow:0 10px 28px rgba(73,56,47,.09) !important;
+    }
+    .st-key-search_filter_panel [data-testid="stButtonGroup"] button {
+        border:0 !important; border-radius:999px !important; background:#fff !important;
+        color:var(--jeju-brown) !important; font-weight:750 !important;
+        box-shadow:0 4px 12px rgba(73,56,47,.08) !important;
+    }
+    .st-key-search_filter_panel [data-testid="stButtonGroup"] button[aria-pressed="true"] {
+        background:var(--jeju-orange) !important; color:#fff !important;
+        box-shadow:0 6px 14px rgba(255,159,28,.25) !important;
+    }
+    .st-key-favorites_lookup_panel [data-testid="stVerticalBlockBorderWrapper"] {
+        background:linear-gradient(120deg,#fff,var(--jeju-pink-soft)) !important;
+        border:0 !important; box-shadow:0 10px 28px rgba(73,56,47,.09) !important;
+    }
+    .st-key-favorites_lookup_panel {
+        padding:1rem !important; border:0 !important; border-radius:22px;
+        background:linear-gradient(120deg,#fff,var(--jeju-pink-soft)) !important;
+        box-shadow:0 10px 28px rgba(73,56,47,.09) !important;
+    }
     div.stButton > button, div.stDownloadButton > button, a[data-testid="stLinkButton"] {
         border-radius: 14px; border-color: var(--jeju-border); font-weight: 680;
         transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
@@ -179,13 +429,23 @@ st.markdown(
         border: none !important; color: var(--jeju-orange-deep) !important;
         transform: none !important; box-shadow: none !important;
     }
-    div[role="radiogroup"] {background: var(--jeju-soft-surface); border: 1px solid var(--jeju-border); border-radius: 16px; padding: .35rem .7rem;}
+    div[role="radiogroup"] {background:var(--jeju-sky-soft); border:0; border-radius:16px; padding:.35rem .7rem;}
     @media (max-width: 768px) {
         [data-testid="stAppViewBlockContainer"],
         .block-container {padding-top: 4.5rem;}
         .home-hero {padding: 2rem 1.35rem 7rem;}
         .home-hero::after {right: 5%; bottom: 5%; font-size: 2.5rem;}
         .brand p {display: none;}
+        .brand-name {font-size:1.65rem;}
+        div[class*="st-key-place_name_"] button,
+        div[class*="st-key-favorite_name_"] button,
+        div[class*="st-key-place_name_"] button p,
+        div[class*="st-key-favorite_name_"] button p {font-size:1.3rem !important;}
+        .st-key-detail_photo [data-testid="stImage"] img, .detail-photo-placeholder {height:240px;}
+        .detail-summary-card {padding:1.25rem;}
+        .detail-title-line {align-items:flex-start;}
+        .detail-core-row {grid-template-columns:1.7rem 5.2rem minmax(0,1fr);}
+        .st-key-detail_points, .st-key-detail_visit, .st-key-detail_map {min-height:auto;}
     }
     </style>
     """,
@@ -360,7 +620,12 @@ def initialize_state() -> None:
         "user_location_accuracy": None,
         "ignore_location_result": False,
         "nickname": "",
+        "bookmark_save_password": "",
         "bookmark_lookup": "",
+        "bookmark_lookup_password": "",
+        "welcome_nickname": "",
+        "welcome_password": "",
+        "welcome_started": False,
         "bookmark_authenticated_nickname": None,
     }
     for key, value in defaults.items():
@@ -418,45 +683,52 @@ def prepare_filter_widget(state_key: str) -> str:
 
 
 def hero() -> None:
-    with st.container(border=True):
-        brand, find_nav, divider, bookmark_nav = st.columns(
-            [5, 1.05, .12, 1.05], vertical_alignment="center"
-        )
-        with brand:
+    is_welcome = st.session_state.page == "home"
+    with st.container(border=True, key="brand_header"):
+        if is_welcome:
             st.markdown(
                 """
                 <div class="brand">
-                    <div class="brand-mark">🍊</div>
-                    <div><h1>제주아이랑</h1></div>
+                    <div class="brand-mark" role="img" aria-label="감귤, 잎, 바다 물결 로고"></div>
+                    <div class="brand-name">제주아이랑</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-        with find_nav:
-            st.button(
-                "장소 찾기", key="header_find", type="tertiary", use_container_width=True,
-                on_click=go_to, args=("home",),
-            )
-        with divider:
-            st.markdown('<div class="nav-divider">|</div>', unsafe_allow_html=True)
-        with bookmark_nav:
-            st.button(
-                "즐겨찾기",
-                key="header_bookmarks",
-                type="tertiary",
-                use_container_width=True,
-                on_click=go_to,
-                args=("bookmarks",),
-            )
+        else:
+            brand, bookmark_nav = st.columns([6, 1.15], vertical_alignment="center")
+            with brand:
+                st.markdown(
+                    """
+                    <div class="brand">
+                        <div class="brand-mark" role="img" aria-label="감귤, 잎, 바다 물결 로고"></div>
+                        <div class="brand-name">제주아이랑</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.button(
+                    "장소 찾기로 이동",
+                    key="header_brand_link",
+                    on_click=go_to,
+                    args=("list",),
+                )
+            with bookmark_nav:
+                st.button(
+                    "♥ 즐겨찾기",
+                    key="header_bookmarks",
+                    type="tertiary",
+                    use_container_width=True,
+                    on_click=go_to,
+                    args=("bookmarks",),
+                )
 
 
 def display_tags(place: pd.Series, include_region: bool = True) -> str:
     values = [clean_text(place.get("category"), "")]
     if include_region:
         values.append(clean_text(place.get("region_group"), ""))
-    values.extend(
-        [clean_text(place.get("space_type"), ""), clean_text(place.get("parking"), "")]
-    )
+    values.append(clean_text(place.get("space_type"), ""))
     return "".join(f'<span class="tag">{value}</span>' for value in values if value)
 
 
@@ -487,59 +759,98 @@ def render_place_grid(frame: pd.DataFrame, key_prefix: str, columns: int = 3) ->
                     st.image(photo_url, use_container_width=True)
                 else:
                     st.markdown('<div class="photo-placeholder">🍊</div>', unsafe_allow_html=True)
-                facilities = [f"🚗 {clean_text(place.get('parking'), '주차 정보 없음')}"]
-                for value, label in (
-                    (place.get("nursing_room"), "🍼 수유실"),
-                    (place.get("stroller_rental"), "🛒 유모차"),
-                    (place.get("diaper_changing_table"), "👶 교환대"),
-                ):
-                    if pd.notna(value) and bool(value):
-                        facilities.append(label)
-                st.markdown(
-                    f"""
-                    <div class="place-card">
-                        <div>{display_tags(place)}</div>
-                        <h3>{clean_text(place.get('place_name'))}</h3>
-                        <p>{description}</p>
-                        <p>📍 {location or '위치 정보 없음'}</p>
-                        {distance_line}<div class="facility-line">{' · '.join(facilities)}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                st.button(
-                    "자세히 보기  →",
-                    key=f"{key_prefix}_{place['place_id']}",
-                    use_container_width=True,
-                    on_click=go_to,
-                    args=("detail", str(place["place_id"])),
-                )
+                with st.container(key=f"place_card_{key_prefix}_{place['place_id']}"):
+                    st.markdown(f'<div>{display_tags(place)}</div>', unsafe_allow_html=True)
+                    st.button(
+                        clean_text(place.get("place_name")),
+                        key=f"place_name_{key_prefix}_{place['place_id']}",
+                        type="tertiary",
+                        use_container_width=True,
+                        on_click=go_to,
+                        args=("detail", str(place["place_id"])),
+                    )
+                    st.markdown(
+                        f"""
+                        <div class="place-card-copy">
+                            <p>{escape(description)}</p>
+                            <p>📍 {escape(location or '위치 정보 없음')}</p>
+                            {distance_line}
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
 
 def render_home(places: pd.DataFrame) -> None:
-    st.markdown(
-        """
-        <section class="home-hero">
-            <h2>오늘, 아이랑<br>어디 갈까요?</h2>
-            <p>지역을 먼저 선택하면 우리 가족에게 맞는 제주 나들이 장소를 쉽고 빠르게 찾아드려요.</p>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
-    with st.container(border=True):
-        st.markdown('<div class="region-title">📍 어느 지역으로 갈까요?</div>', unsafe_allow_html=True)
-        st.caption("지역을 선택하면 장소 목록과 상세 필터가 열립니다.")
-        region_columns = st.columns(4)
-        for index, region in enumerate(REGIONS):
-            count = len(places) if region == "전체" else int((places["region_group"] == region).sum())
-            with region_columns[index % 4]:
-                st.button(
-                    f"{region}  ·  {count}곳",
-                    key=f"home_region_{region}",
-                    use_container_width=True,
-                    on_click=select_region,
-                    args=(region,),
+    del places
+    with st.container(border=True, key="welcome_hero"):
+        copy_col, visual_col = st.columns([.9, 1.1], gap="large", vertical_alignment="center")
+        with copy_col:
+            st.markdown(
+                """
+                <div class="welcome-copy">
+                    <h2>오늘 아이랑<br>어디 갈까요?</h2>
+                    <p>우리 가족에게 맞는 제주 나들이 장소를 찾아보세요.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            with st.container(border=True, key="welcome_start_card"):
+                st.markdown("### 🍊 닉네임으로 시작하기")
+                welcome_nickname = st.text_input(
+                    "닉네임",
+                    key="welcome_nickname",
+                    max_chars=30,
+                    placeholder="닉네임을 입력해 주세요",
                 )
+                welcome_password = st.text_input(
+                    "비밀번호",
+                    key="welcome_password",
+                    type="password",
+                    max_chars=50,
+                    placeholder="비밀번호를 4자 이상 입력해 주세요",
+                )
+                if st.button("제주아이랑 시작하기", type="primary", use_container_width=True):
+                    normalized = welcome_nickname.strip()
+                    if not normalized:
+                        st.warning("닉네임을 입력해 주세요.")
+                    elif len(welcome_password) < 4:
+                        st.warning("비밀번호를 4자 이상 입력해 주세요.")
+                    else:
+                        bookmarks = load_bookmarks()
+                        same_nickname = nickname_mask(bookmarks, normalized)
+                        protected = bookmarks[
+                            same_nickname
+                            & bookmarks["password_salt"].fillna("").str.strip().ne("")
+                            & bookmarks["password_hash"].fillna("").str.strip().ne("")
+                        ]
+                        if not protected.empty and not verify_password(
+                            welcome_password,
+                            protected.iloc[0]["password_salt"],
+                            protected.iloc[0]["password_hash"],
+                        ):
+                            st.error("이 닉네임에 설정된 비밀번호와 일치하지 않습니다.")
+                        else:
+                            st.session_state.nickname = normalized
+                            st.session_state.bookmark_save_password = welcome_password
+                            st.session_state.bookmark_lookup = normalized
+                            st.session_state.bookmark_lookup_password = welcome_password
+                            st.session_state.welcome_started = True
+                            st.session_state.selected_region = "전체"
+                            go_to("list")
+                            st.rerun()
+                st.caption("♥ 가입 없이 바로 시작할 수 있어요")
+        with visual_col:
+            st.markdown(
+                """
+                <div class="welcome-visual" aria-label="제주에서 나들이하는 가족">
+                    <div class="welcome-mountain"></div><div class="welcome-sea"></div>
+                    <div class="welcome-family">👩‍👧</div><div class="welcome-fruit">🍊</div>
+                    <div class="welcome-flower">🌺</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def filter_places(places: pd.DataFrame) -> pd.DataFrame:
@@ -555,16 +866,27 @@ def filter_places(places: pd.DataFrame) -> pd.DataFrame:
     for state_key, column in (
         ("category_filter", "category"),
         ("space_filter", "space_type"),
-        ("parking_filter", "parking"),
     ):
         selected = st.session_state[state_key]
         if selected:
             result = result[result[column].isin(selected)]
 
-    # Every selected convenience condition must be true (AND).
+    # Parking buttons describe capabilities. Each selected button is combined with OR.
+    selected_parking = st.session_state.parking_filter
+    if selected_parking:
+        accepted_parking_values = {
+            raw_value
+            for label in selected_parking
+            for raw_value in PARKING_FILTERS.get(label, (label,))
+        }
+        result = result[result["parking"].isin(accepted_parking_values)]
+
+    # Every selected convenience/use condition must match (AND).
     for label in st.session_state.feature_filter:
-        column = FEATURE_FILTERS[label]
-        result = result[result[column].fillna(False)]
+        if label not in FEATURE_FILTERS:
+            continue
+        column, required_value = FEATURE_FILTERS[label]
+        result = result[result[column].fillna(not required_value).eq(required_value)]
         if label == "도민 할인 있음":
             # Free venues must not appear in resident-discount results.
             result = result[result["has_admission_fee"].fillna(False)]
@@ -630,8 +952,8 @@ def reuse_location() -> None:
 
 
 def render_location_control() -> None:
-    st.markdown("#### 내 위치")
-    st.caption("아래 위치 버튼을 누르면 거리순 정렬을 사용할 수 있어요.")
+    st.markdown("**내 위치** · 거리순 정렬")
+    st.caption("위치 버튼을 누르면 가까운 장소부터 볼 수 있어요.")
     location = streamlit_geolocation()
 
     if valid_location(location) and not st.session_state.ignore_location_result:
@@ -652,7 +974,7 @@ def render_location_control() -> None:
         st.info("현재 위치 사용을 중지했습니다.")
         st.button("위치 다시 사용", use_container_width=True, on_click=reuse_location)
     else:
-        st.caption("권한 요청이 나타나면 ‘허용’을 선택하세요. 배포 환경에서는 HTTPS가 필요합니다.")
+        st.caption("권한 요청이 나타나면 ‘허용’을 선택하세요.")
 
 
 def active_filter_labels() -> list[str]:
@@ -763,52 +1085,111 @@ def render_place_map(frame: pd.DataFrame) -> None:
 
 
 def render_list(places: pd.DataFrame) -> None:
-    with st.sidebar:
-        st.title("장소 찾기")
-        render_location_control()
-        st.divider()
-        st.session_state.selected_region = st.selectbox(
-            "지역",
-            REGIONS,
-            key=prepare_filter_widget("selected_region"),
-        )
+    st.markdown('<div class="page-title search-page-title">아이와 어디로 떠나볼까요?</div>', unsafe_allow_html=True)
+    st.caption("조건을 선택하면 우리 가족에게 맞는 장소를 찾아드려요.")
+
+    search_field, search_action = st.columns([6, 1], vertical_alignment="bottom")
+    with search_field:
         st.session_state.search_query = st.text_input(
-            "장소명 검색",
+            "장소 검색",
             key=prepare_filter_widget("search_query"),
-            placeholder="장소명을 입력하세요",
+            placeholder="장소 이름이나 키워드를 검색해 보세요",
+            label_visibility="collapsed",
         )
-        st.session_state.category_filter = st.multiselect(
+    with search_action:
+        st.button("검색", type="primary", use_container_width=True)
+
+    with st.container(border=True, key="search_filter_panel"):
+        region_col, space_col = st.columns([1, 2])
+        with region_col:
+            st.markdown("**지역**")
+            st.session_state.selected_region = st.selectbox(
+                "지역",
+                REGIONS,
+                key=prepare_filter_widget("selected_region"),
+                label_visibility="collapsed",
+            )
+        with space_col:
+            st.markdown("**공간** · 여러 개 선택 가능")
+            available_spaces = set(places["space_type"].dropna().astype(str).unique())
+            space_options = [
+                value for value in ["실내", "실외", "실내/실외"]
+                if value in available_spaces
+            ]
+            st.session_state.space_filter = st.pills(
+                "실내외 구분",
+                space_options,
+                selection_mode="multi",
+                key=prepare_filter_widget("space_filter"),
+                label_visibility="collapsed",
+                format_func=lambda value: f"{'🏠' if value == '실내' else '🌿'} {value}",
+            )
+
+        st.markdown("**시설유형** · 여러 개 선택 가능")
+        category_icons = ["🎨", "🐬", "🌳", "🧸", "🏛️", "🎡"]
+        category_options = sorted(places["category"].dropna().astype(str).unique())
+        category_icon_map = {
+            value: category_icons[index % len(category_icons)]
+            for index, value in enumerate(category_options)
+        }
+        st.session_state.category_filter = st.pills(
             "시설유형",
-            sorted(places["category"].dropna().astype(str).unique()),
+            category_options,
+            selection_mode="multi",
             key=prepare_filter_widget("category_filter"),
+            label_visibility="collapsed",
+            format_func=lambda value: f"{category_icon_map[value]} {value}",
         )
-        st.session_state.space_filter = st.multiselect(
-            "실내외 구분",
-            sorted(places["space_type"].dropna().astype(str).unique()),
-            key=prepare_filter_widget("space_filter"),
-        )
-        st.session_state.parking_filter = st.multiselect(
-            "주차 유형",
-            sorted(places["parking"].dropna().astype(str).unique()),
-            key=prepare_filter_widget("parking_filter"),
-        )
-        st.session_state.feature_filter = st.multiselect(
-            "편의·이용 조건 (모두 충족)",
-            list(FEATURE_FILTERS),
-            key=prepare_filter_widget("feature_filter"),
-            help="여러 항목을 선택하면 모든 조건을 충족하는 장소만 표시합니다.",
-        )
+
+        parking_col, feature_col = st.columns([1, 2])
+        with parking_col:
+            st.markdown("**주차** · 하나 이상 일치 (OR)")
+            st.session_state.parking_filter = st.pills(
+                "주차 유형 (OR)",
+                list(PARKING_FILTERS),
+                selection_mode="multi",
+                key=prepare_filter_widget("parking_filter"),
+                label_visibility="collapsed",
+                format_func=lambda value: f"🚗 {value}",
+            )
+        with feature_col:
+            st.markdown("**편의시설 · 이용조건** · 선택한 조건 모두 충족 (AND)")
+            feature_icons = {
+                "입장료 없음": "🆓", "연령제한 없음": "👨‍👩‍👧",
+                "수유실 있음": "🍼", "유모차 대여 가능": "🛒",
+                "기저귀 교환대 있음": "👶", "도민 할인 있음": "🍊",
+            }
+            st.session_state.feature_filter = st.pills(
+                "편의·이용 조건 (모두 충족)",
+                list(FEATURE_FILTERS),
+                selection_mode="multi",
+                key=prepare_filter_widget("feature_filter"),
+                label_visibility="collapsed",
+                format_func=lambda value: f"{feature_icons[value]} {value}",
+                help="선택한 모든 조건을 충족하는 장소만 표시합니다.",
+            )
+        location_col, _ = st.columns([1, 2])
+        with location_col:
+            render_location_control()
+        st.button("필터 초기화 ↻", key="main_filter_reset", on_click=reset_filters)
+
+    sort_col, view_col = st.columns([1, 2], vertical_alignment="bottom")
+    with sort_col:
         st.session_state.sort_order = st.selectbox(
             "정렬",
             ["기본순", "장소명순 (가나다)", "거리순"],
             key=prepare_filter_widget("sort_order"),
         )
-        if st.session_state.sort_order == "거리순" and st.session_state.user_latitude is None:
-            st.warning("거리순을 사용하려면 위의 위치 버튼을 눌러 주세요.")
-        st.button("전체 조건 초기화", use_container_width=True, on_click=reset_filters)
-        st.divider()
-        st.button("처음 화면", use_container_width=True, on_click=go_to, args=("home",))
-        st.button("즐겨찾기", use_container_width=True, on_click=go_to, args=("bookmarks",))
+    with view_col:
+        st.session_state.view_mode = st.radio(
+            "보기 형식",
+            ["갤러리 보기", "표로 보기", "지도 보기"],
+            horizontal=True,
+            key=prepare_filter_widget("view_mode"),
+        )
+
+    if st.session_state.sort_order == "거리순" and st.session_state.user_latitude is None:
+        st.warning("거리순을 사용하려면 필터의 ‘내 위치’에서 위치를 허용해 주세요.")
 
     filtered = filter_places(places)
     selected_categories = st.session_state.category_filter
@@ -817,15 +1198,11 @@ def render_list(places: pd.DataFrame) -> None:
     elif len(selected_categories) > 1:
         title = "선택한 시설유형 장소 목록"
     else:
-        title = "전체 장소 목록"
+        title = "우리 가족을 위한 추천 장소"
 
-    st.markdown('<div class="page-kicker">장소 찾기</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-title">아이와 어디로 떠나볼까요?</div>', unsafe_allow_html=True)
-    st.caption("조건을 선택하면 우리 가족에게 맞는 장소를 찾아드려요.")
     labels = active_filter_labels()
     if labels:
         st.markdown(" ".join(f'<span class="tag">{label}</span>' for label in labels), unsafe_allow_html=True)
-        st.write("")
 
     st.markdown(
         f'<div class="result-heading"><span>{title}</span><b>{len(filtered):,}곳</b></div>',
@@ -833,16 +1210,10 @@ def render_list(places: pd.DataFrame) -> None:
     )
 
     if filtered.empty:
-        st.info("선택한 조건에 맞는 장소가 없습니다. 조건을 일부 해제해 보세요.")
+        st.info("조건에 맞는 장소가 없어요. 필터를 바꿔보세요.")
         st.button("모든 조건 초기화", on_click=reset_filters)
         return
 
-    st.session_state.view_mode = st.radio(
-        "보기 형식",
-        ["갤러리 보기", "표로 보기", "지도 보기"],
-        horizontal=True,
-        key=prepare_filter_widget("view_mode"),
-    )
     if st.session_state.view_mode == "표로 보기":
         render_place_table(filtered)
     elif st.session_state.view_mode == "지도 보기":
@@ -869,279 +1240,329 @@ def info_box(label: str, value: object) -> None:
     )
 
 
+def current_place_is_saved(place_id: str) -> bool:
+    nickname = st.session_state.nickname.strip()
+    if not nickname:
+        return False
+    bookmarks = load_bookmarks()
+    return bool(
+        (
+            nickname_mask(bookmarks, nickname)
+            & bookmarks["place_id"].astype(str).eq(str(place_id))
+        ).any()
+    )
+
+
+def toggle_current_bookmark(place_id: str) -> None:
+    nickname = st.session_state.nickname.strip()
+    password = st.session_state.bookmark_save_password
+    if not nickname or len(password) < 4:
+        st.session_state.bookmark_flash = ("error", "로그인 정보가 없습니다. 시작 화면에서 다시 로그인해 주세요.")
+        return
+
+    bookmarks = load_bookmarks()
+    same_nickname = nickname_mask(bookmarks, nickname)
+    protected = bookmarks[
+        same_nickname
+        & bookmarks["password_salt"].fillna("").str.strip().ne("")
+        & bookmarks["password_hash"].fillna("").str.strip().ne("")
+    ]
+    if not protected.empty:
+        credential = protected.iloc[0]
+        salt = str(credential["password_salt"])
+        digest = str(credential["password_hash"])
+        if not verify_password(password, salt, digest):
+            st.session_state.bookmark_flash = ("error", "비밀번호가 일치하지 않아 저장 상태를 변경하지 못했습니다.")
+            return
+        legacy_rows = same_nickname & (
+            bookmarks["password_salt"].fillna("").str.strip().eq("")
+            | bookmarks["password_hash"].fillna("").str.strip().eq("")
+        )
+        bookmarks.loc[legacy_rows, "password_salt"] = salt
+        bookmarks.loc[legacy_rows, "password_hash"] = digest
+    else:
+        salt, digest = create_password_credentials(password)
+        bookmarks.loc[same_nickname, "password_salt"] = salt
+        bookmarks.loc[same_nickname, "password_hash"] = digest
+
+    bookmark_rows = same_nickname & bookmarks["place_id"].astype(str).eq(str(place_id))
+    if bookmark_rows.any():
+        if write_bookmarks(bookmarks.loc[~bookmark_rows].copy()):
+            st.session_state.bookmark_flash = ("info", "저장을 취소했어요.")
+        return
+
+    numeric_ids = pd.to_numeric(
+        bookmarks["bookmark_id"].fillna("").str.extract(r"(\d+)", expand=False),
+        errors="coerce",
+    )
+    next_number = int(numeric_ids.max()) + 1 if numeric_ids.notna().any() else 1
+    new_row = pd.DataFrame([{
+        "bookmark_id": f"B{next_number:03d}",
+        "nickname": nickname,
+        "place_id": str(place_id),
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "password_salt": salt,
+        "password_hash": digest,
+        "memo": "",
+    }])
+    if write_bookmarks(pd.concat([bookmarks, new_row], ignore_index=True)):
+        st.session_state.bookmark_flash = ("success", "장소를 저장했어요.")
+
+
+def detail_row(icon: str, label: str, value: object) -> str:
+    return (
+        '<div class="detail-core-row">'
+        f'<span>{icon}</span><b>{escape(label)}</b>'
+        f'<span>{escape(clean_text(value))}</span></div>'
+    )
+
+
 def render_detail(places: pd.DataFrame) -> None:
-    place_id = st.session_state.selected_place_id
-    selected = places[places["place_id"].astype(str) == str(place_id)]
+    st.html(
+        """
+        <script>
+        (() => {
+        const scrollDetailToTop = () => {
+            const main = document.querySelector('section[data-testid="stMain"]');
+            if (main) main.scrollTo(0, 0);
+        };
+        scrollDetailToTop();
+        requestAnimationFrame(scrollDetailToTop);
+        setTimeout(scrollDetailToTop, 80);
+        })();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+    place_id = str(st.session_state.selected_place_id)
+    selected = places[places["place_id"].astype(str) == place_id]
     if selected.empty:
         st.error("선택한 장소를 찾을 수 없습니다.")
         st.button("목록으로 돌아가기", on_click=go_to, args=("list",))
         return
     place = selected.iloc[0]
 
-    st.button("← 장소 목록으로", on_click=go_to, args=("list",))
-    description = clean_text(place.get("description"), "아이와 함께 둘러볼 제주 장소입니다.")
+    st.button("← 장소 목록으로", on_click=go_to, args=("list",), type="tertiary")
     photo_url = clean_text(place.get("photo_url"), "")
-    media, summary = st.columns([1.35, 1], gap="large", vertical_alignment="top")
-    with media:
+    with st.container(key="detail_photo"):
         if photo_url:
             st.image(photo_url, use_container_width=True)
         else:
-            st.markdown('<div class="photo-placeholder">🍊 제주 나들이</div>', unsafe_allow_html=True)
-    with summary:
-        st.markdown('<div class="page-kicker">장소 상세정보</div>', unsafe_allow_html=True)
-        st.title(clean_text(place.get("place_name")))
-        st.markdown(display_tags(place), unsafe_allow_html=True)
-        st.markdown(f"### {description}")
-        info_box("📍 위치", place.get("road_address"))
-        info_box("🕘 운영시간", place.get("opening_hours"))
-        info_box(
-            "🎫 이용요금",
-            yes_no_unknown(place.get("has_admission_fee"), "입장료 있음", "무료"),
-        )
-        info_box("👶 연령제한", yes_no_unknown(place.get("has_age_limit")))
+            st.markdown('<div class="detail-photo-placeholder">NO IMAGE AVAILABLE</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="spacer"></div>', unsafe_allow_html=True)
-    st.subheader("위치")
-    lat, lon = place.get("latitude"), place.get("longitude")
-    if pd.notna(lat) and pd.notna(lon):
-        st.map(pd.DataFrame({"lat": [float(lat)], "lon": [float(lon)]}), zoom=13, use_container_width=True)
-    else:
-        st.info("위치 정보가 등록되지 않았습니다.")
-
-    st.subheader("운영 및 이용 정보")
-    col1, col2 = st.columns(2)
-    with col1:
-        info_box("휴무일", place.get("closed_days"))
-        info_box("이용요금 상세", place.get("admission_fee_detail"))
-    with col2:
-        info_box("전화번호", place.get("phone"))
-        info_box("주차", place.get("parking"))
-        info_box("연령제한 상세", place.get("age_limit_detail"))
-        info_box("도민 할인", yes_no_unknown(place.get("resident_discount"), "할인 있음", "할인 없음"))
-
-    st.subheader("편의시설")
-    conveniences = [
-        ("실내외", clean_text(place.get("space_type"))),
-        ("수유실", yes_no_unknown(place.get("nursing_room"), "보유", "미보유")),
-        ("유모차 대여", yes_no_unknown(place.get("stroller_rental"), "가능", "불가")),
-        ("기저귀 교환대", yes_no_unknown(place.get("diaper_changing_table"), "보유", "미보유")),
-        ("도민 할인", yes_no_unknown(place.get("resident_discount"), "할인 있음", "할인 없음")),
-    ]
-    convenience_columns = st.columns(len(conveniences))
-    for column, (label, value) in zip(convenience_columns, conveniences):
-        with column:
-            st.metric(label, value)
-
-    link_columns = st.columns(2)
+    description = clean_text(place.get("description"), "아이와 함께 둘러볼 제주 장소입니다.")
+    admission_value = (
+        "무료" if pd.notna(place.get("has_admission_fee")) and not bool(place.get("has_admission_fee"))
+        else clean_text(place.get("admission_fee_detail"), "입장료 있음")
+    )
+    age_value = (
+        "연령제한 없음" if pd.notna(place.get("has_age_limit")) and not bool(place.get("has_age_limit"))
+        else clean_text(place.get("age_limit_detail"), "연령제한 있음")
+    )
+    rows = "".join([
+        detail_row("📍", "위치", place.get("road_address")),
+        detail_row("🕘", "운영시간", place.get("opening_hours")),
+        detail_row("₩", "이용 요금", admission_value),
+        detail_row("☺", "연령제한", age_value),
+    ])
     website = clean_text(place.get("website_url"), "")
     reservation = clean_text(place.get("reservation_url"), "")
-    if website:
-        link_columns[0].link_button("홈페이지 열기", website, use_container_width=True)
-    if reservation:
-        link_columns[1].link_button("예약하기", reservation, use_container_width=True)
-
-    review = clean_text(place.get("review_summary"), "")
-    if review:
-        st.subheader("방문 후기 요약")
-        st.info(review)
-
-    st.markdown('<div class="spacer"></div>', unsafe_allow_html=True)
-    st.divider()
-    st.subheader("즐겨찾기 저장")
-    st.caption("닉네임과 비밀번호로 저장해 두면 나중에 다시 찾아볼 수 있어요.")
-    nickname = st.text_input("닉네임", key="nickname", max_chars=30, placeholder="예: 아진맘")
-    password = st.text_input(
-        "비밀번호",
-        key="bookmark_save_password",
-        type="password",
-        max_chars=50,
-        placeholder="4자 이상 입력하세요",
+    action_links = []
+    if website.startswith(("http://", "https://")):
+        action_links.append(
+            f'<a class="detail-mini-link" href="{escape(website, quote=True)}" '
+            'target="_blank" rel="noopener noreferrer">🌐 홈페이지</a>'
+        )
+    if reservation.startswith(("http://", "https://")):
+        action_links.append(
+            f'<a class="detail-mini-link reserve" href="{escape(reservation, quote=True)}" '
+            'target="_blank" rel="noopener noreferrer">🎟 예약하기</a>'
+        )
+    st.markdown(
+        f"""
+        <section class="detail-summary-card">
+            <div class="detail-tags">{display_tags(place)}</div>
+            <div class="detail-title-line">
+                <h1>{escape(clean_text(place.get('place_name')))}</h1>
+                <div class="detail-actions">{''.join(action_links)}</div>
+            </div>
+            <p class="detail-description">{escape(description)}</p>
+            <div>{rows}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
     )
-    memo = st.text_area(
-        "메모 (선택)",
-        key="bookmark_save_memo",
-        max_chars=500,
-        placeholder="아이와 방문할 때 기억할 내용을 적어 두세요.",
-    )
-    if st.button("즐겨찾기에 저장", type="primary"):
-        normalized = nickname.strip()
-        if not normalized:
-            st.warning("닉네임을 입력해 주세요.")
-        elif len(password) < 4:
-            st.warning("비밀번호를 4자 이상 입력해 주세요.")
-        else:
-            bookmarks = load_bookmarks()
-            same_nickname = nickname_mask(bookmarks, normalized)
-            protected = bookmarks[
-                same_nickname
-                & bookmarks["password_salt"].fillna("").str.strip().ne("")
-                & bookmarks["password_hash"].fillna("").str.strip().ne("")
-            ]
-            credentials_updated = False
-            authorized = True
 
-            if not protected.empty:
-                credential = protected.iloc[0]
-                salt = str(credential["password_salt"])
-                digest = str(credential["password_hash"])
-                if not verify_password(password, salt, digest):
-                    st.error("이 닉네임에 설정된 비밀번호와 일치하지 않습니다.")
-                    authorized = False
-                else:
-                    legacy_rows = same_nickname & (
-                        bookmarks["password_salt"].fillna("").str.strip().eq("")
-                        | bookmarks["password_hash"].fillna("").str.strip().eq("")
-                    )
-                    if legacy_rows.any():
-                        bookmarks.loc[legacy_rows, "password_salt"] = salt
-                        bookmarks.loc[legacy_rows, "password_hash"] = digest
-                        credentials_updated = True
+    saved = current_place_is_saved(place_id)
+    save_button_background = "#f7b6c8" if saved else "#ff9f1c"
+    save_button_color = "#49382f" if saved else "#ffffff"
+    st.html(
+        f"""
+        <style>
+        .st-key-detail_save_toggle button {{
+            background:{save_button_background} !important;
+            color:{save_button_color} !important;
+        }}
+        </style>
+        """
+    )
+    st.button(
+        "♥ 저장한 장소" if saved else "♡ 이 장소 저장하기",
+        key="detail_save_toggle",
+        type="primary",
+        use_container_width=True,
+        on_click=toggle_current_bookmark,
+        args=(place_id,),
+    )
+    flash = st.session_state.pop("bookmark_flash", None)
+    if flash:
+        kind, message = flash
+        toast_icons = {"success": "💖", "info": "💨", "error": "🚫"}
+        st.toast(message, icon=toast_icons.get(kind, "🍊"))
+
+    point_items = []
+    if pd.notna(place.get("nursing_room")) and bool(place.get("nursing_room")):
+        point_items.append("수유실을 이용할 수 있어요")
+    if pd.notna(place.get("stroller_rental")) and bool(place.get("stroller_rental")):
+        point_items.append("유모차를 대여할 수 있어요")
+    if pd.notna(place.get("diaper_changing_table")) and bool(place.get("diaper_changing_table")):
+        point_items.append("기저귀 교환대가 있어요")
+    if clean_text(place.get("space_type"), "") == "실내":
+        point_items.append("실내 공간이라 날씨 영향을 덜 받아요")
+    if not point_items:
+        point_items.append("등록된 아이 동반 편의시설 정보가 없어요")
+
+    lower_columns = st.columns(3, gap="medium")
+    with lower_columns[0]:
+        with st.container(key="detail_points"):
+            st.markdown("### ⭐ 아이랑 포인트")
+            for item in point_items:
+                st.markdown(f'<div class="detail-check">{escape(item)}</div>', unsafe_allow_html=True)
+    with lower_columns[1]:
+        with st.container(key="detail_visit"):
+            st.markdown("### 💡 방문 전 확인해요")
+            for item in [
+                f"휴무일: {clean_text(place.get('closed_days'))}",
+                f"전화: {clean_text(place.get('phone'))}",
+                clean_text(place.get("review_summary"), "방문 전 운영 정보를 확인해 주세요"),
+            ]:
+                st.markdown(f'<div class="detail-check">{escape(item)}</div>', unsafe_allow_html=True)
+    with lower_columns[2]:
+        with st.container(key="detail_map"):
+            st.markdown("### 📍 위치 안내")
+            lat, lon = place.get("latitude"), place.get("longitude")
+            if pd.notna(lat) and pd.notna(lon):
+                st.map(
+                    pd.DataFrame({"lat": [float(lat)], "lon": [float(lon)]}),
+                    zoom=12,
+                    width="stretch",
+                    height=300,
+                )
             else:
-                salt, digest = create_password_credentials(password)
-                if same_nickname.any():
-                    # Existing rows predate the password feature. The first save claims them.
-                    bookmarks.loc[same_nickname, "password_salt"] = salt
-                    bookmarks.loc[same_nickname, "password_hash"] = digest
-                    credentials_updated = True
+                st.info("위치 정보가 등록되지 않았습니다.")
+            st.markdown(f"🚙 {escape(clean_text(place.get('parking'), '주차 정보 없음'))}")
 
-            duplicate = (same_nickname & bookmarks["place_id"].astype(str).eq(str(place_id))).any()
-            if authorized and duplicate:
-                if credentials_updated:
-                    if write_bookmarks(bookmarks):
-                        st.success("기존 즐겨찾기에 비밀번호를 연결했습니다.")
-                else:
-                    st.info("이미 즐겨찾기에 저장한 장소입니다.")
-            elif authorized:
-                numeric_ids = pd.to_numeric(
-                    bookmarks["bookmark_id"].fillna("").str.extract(r"(\d+)", expand=False),
-                    errors="coerce",
-                )
-                next_number = int(numeric_ids.max()) + 1 if numeric_ids.notna().any() else 1
-                new_row = pd.DataFrame(
-                    [{
-                        "bookmark_id": f"B{next_number:03d}",
-                        "nickname": normalized,
-                        "place_id": str(place_id),
-                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "password_salt": salt,
-                        "password_hash": digest,
-                        "memo": memo.strip(),
-                    }]
-                )
-                if write_bookmarks(pd.concat([bookmarks, new_row], ignore_index=True)):
-                    st.success("즐겨찾기에 저장했습니다.")
-
-
-def clear_bookmark_auth() -> None:
-    st.session_state.bookmark_authenticated_nickname = None
-
-
-def end_bookmark_session() -> None:
-    st.session_state.bookmark_authenticated_nickname = None
-    st.session_state.bookmark_lookup_password = ""
 
 
 def render_bookmarks(places: pd.DataFrame) -> None:
-    st.button("← 처음 화면", on_click=go_to, args=("home",))
-    st.title("즐겨찾기")
-    st.caption("저장할 때 사용한 닉네임과 비밀번호를 입력하세요.")
-    nickname = st.text_input(
-        "닉네임",
-        key="bookmark_lookup",
-        max_chars=30,
-        on_change=clear_bookmark_auth,
+    st.markdown(
+        """
+        <div class="favorites-intro">
+            <div><div class="page-title favorites-title">마음에 담아둔 제주 💛</div>
+            <p>아이와 함께 가고 싶은 장소를 한곳에서 편하게 확인하세요.</p></div>
+            <div class="favorites-art">🍊　🌊　🌿</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    password = st.text_input(
-        "비밀번호",
-        key="bookmark_lookup_password",
-        type="password",
-        max_chars=50,
-        on_change=clear_bookmark_auth,
-    )
-    normalized = nickname.strip()
-    bookmarks = load_bookmarks()
-    if st.button("내 즐겨찾기 보기", type="primary"):
-        if not normalized or not password:
-            st.warning("닉네임과 비밀번호를 모두 입력해 주세요.")
-        else:
-            authenticated, message = authenticate_nickname(bookmarks, normalized, password)
-            if authenticated:
-                st.session_state.bookmark_authenticated_nickname = normalized
-            else:
-                st.session_state.bookmark_authenticated_nickname = None
-                st.error(message)
-
-    if st.session_state.bookmark_authenticated_nickname != normalized or not normalized:
-        st.info("닉네임과 비밀번호가 확인되면 저장한 장소가 표시됩니다.")
+    normalized = st.session_state.nickname.strip()
+    if not normalized:
+        st.info("시작 화면에서 닉네임과 비밀번호를 입력하면 즐겨찾기를 확인할 수 있어요.")
+        st.button("시작 화면으로", type="primary", on_click=go_to, args=("home",))
         return
 
-    st.button("조회 종료", on_click=end_bookmark_session)
+    bookmarks = load_bookmarks()
     mine = bookmarks[bookmarks["nickname"].fillna("").str.strip() == normalized].copy()
     if mine.empty:
-        st.info("이 닉네임으로 저장한 즐겨찾기가 없습니다.")
+        st.info("아직 저장한 장소가 없어요. 장소 찾기에서 마음에 드는 곳을 저장해 보세요.")
         return
     mine["_created"] = pd.to_datetime(mine["created_at"], errors="coerce")
     mine = mine.sort_values("_created", ascending=False, na_position="last")
     safe_download_columns = ["bookmark_id", "nickname", "place_id", "created_at", "memo"]
+    joined = mine.merge(places, on="place_id", how="left", suffixes=("_bookmark", ""))
+    st.markdown(
+        f'<div class="result-heading"><span>{normalized}님의 즐겨찾기</span><b>{len(joined)}곳</b></div>',
+        unsafe_allow_html=True,
+    )
     st.download_button(
-        "내 북마크 CSV 내려받기",
+        "내 즐겨찾기 CSV 내려받기",
         data=mine[safe_download_columns].to_csv(index=False).encode("utf-8-sig"),
         file_name=f"{normalized}_bookmarks.csv",
         mime="text/csv",
-        use_container_width=True,
     )
-    joined = mine.merge(places, on="place_id", how="left", suffixes=("_bookmark", ""))
-    st.caption(f"저장한 장소 {len(joined)}곳 · 최신 저장순")
 
-    for _, place in joined.iterrows():
-        card, actions = st.columns([5, 2])
-        with card:
-            st.markdown(
-                f"""
-                <div class="place-card">
-                    <div>{display_tags(place)}</div>
-                    <h3>{clean_text(place.get('place_name'), '삭제되었거나 찾을 수 없는 장소')}</h3>
-                    <p>저장일시 · {clean_text(place.get('created_at'))}</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with actions:
-            memo_value = st.text_area(
-                "메모",
-                value=clean_text(place.get("memo"), ""),
-                key=f"bookmark_memo_{place['bookmark_id']}",
-                max_chars=500,
-            )
-            if st.button(
-                "메모 저장",
-                key=f"bookmark_memo_save_{place['bookmark_id']}",
-                use_container_width=True,
-            ):
-                # Always update the complete source table by its unique ID.
-                # Never write only the nickname-filtered rows shown on screen.
-                updated = load_bookmarks()
-                target = updated["bookmark_id"].astype(str).eq(str(place["bookmark_id"]))
-                if target.sum() != 1:
-                    st.error("수정할 북마크를 정확히 찾을 수 없습니다.")
+    for start in range(0, len(joined), 3):
+        columns = st.columns(3)
+        for offset, (_, place) in enumerate(joined.iloc[start : start + 3].iterrows()):
+            with columns[offset]:
+                photo_url = clean_text(place.get("photo_url"), "")
+                if photo_url:
+                    st.image(photo_url, use_container_width=True)
                 else:
-                    updated.loc[target, "memo"] = memo_value.strip()
-                    if write_bookmarks(updated):
-                        st.success("메모를 저장했습니다.")
-            if pd.notna(place.get("place_name")):
-                st.button(
-                    "상세 보기",
-                    key=f"bookmark_open_{place['bookmark_id']}",
-                    use_container_width=True,
-                    on_click=go_to,
-                    args=("detail", str(place["place_id"])),
+                    st.markdown('<div class="photo-placeholder">♥</div>', unsafe_allow_html=True)
+                with st.container(key=f"favorite_card_{place['bookmark_id']}"):
+                    st.markdown(f'<div>{display_tags(place)}</div>', unsafe_allow_html=True)
+                    place_name = clean_text(place.get("place_name"), "삭제되었거나 찾을 수 없는 장소")
+                    if pd.notna(place.get("place_name")):
+                        st.button(
+                            place_name,
+                            key=f"favorite_name_{place['bookmark_id']}",
+                            type="tertiary",
+                            use_container_width=True,
+                            on_click=go_to,
+                            args=("detail", str(place["place_id"])),
+                        )
+                    else:
+                        st.markdown(f"### {escape(place_name)}")
+                    st.markdown(
+                        f"""
+                        <div class="place-card-copy">
+                            <p>{escape(clean_text(place.get('description'), '아이와 함께 가고 싶은 제주 장소'))}</p>
+                            <p class="saved-at">♡ 저장일시 · {escape(clean_text(place.get('created_at')))}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                memo_value = st.text_area(
+                    "나들이 메모",
+                    value=clean_text(place.get("memo"), ""),
+                    key=f"bookmark_memo_{place['bookmark_id']}",
+                    max_chars=500,
+                    placeholder="아이와 함께할 나들이 메모를 남겨보세요",
                 )
-            if st.button(
-                "삭제", key=f"bookmark_delete_{place['bookmark_id']}", use_container_width=True
-            ):
-                updated = bookmarks[bookmarks["bookmark_id"] != place["bookmark_id"]]
-                if write_bookmarks(updated):
-                    st.rerun()
+                memo_action, delete_action = st.columns([1, .7])
+                with memo_action:
+                    if st.button(
+                        "메모 저장",
+                        key=f"bookmark_memo_save_{place['bookmark_id']}",
+                        use_container_width=True,
+                    ):
+                        # Always update the complete source table by its unique ID.
+                        updated = load_bookmarks()
+                        target = updated["bookmark_id"].astype(str).eq(str(place["bookmark_id"]))
+                        if target.sum() != 1:
+                            st.error("수정할 북마크를 정확히 찾을 수 없습니다.")
+                        else:
+                            updated.loc[target, "memo"] = memo_value.strip()
+                            if write_bookmarks(updated):
+                                st.success("메모를 저장했습니다.")
+                with delete_action:
+                    if st.button(
+                        "삭제", key=f"bookmark_delete_{place['bookmark_id']}", use_container_width=True
+                    ):
+                        updated = bookmarks[bookmarks["bookmark_id"] != place["bookmark_id"]]
+                        if write_bookmarks(updated):
+                            st.rerun()
 
 
 def main() -> None:
