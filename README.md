@@ -1,2 +1,0 @@
-# jeju-irang
-

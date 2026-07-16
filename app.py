@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-import html
 import os
-import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
@@ -15,358 +11,625 @@ import streamlit as st
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
-PLACES_PATH = Path(os.getenv("JEJU_IRANG_PLACES_PATH", DATA_DIR / "jeju_irang.csv"))
-BOOKMARKS_PATH = Path(os.getenv("JEJU_IRANG_BOOKMARKS_PATH", DATA_DIR / "bookmarks.csv"))
+PLACES_PATH = DATA_DIR / "jeju-irang.csv"
+BOOKMARKS_PATH = DATA_DIR / "bookmarks.csv"
 
-PLACE_COLUMNS = [
-    "place_id", "place_name", "category_level_2", "city_name", "legal_dong_name",
-    "region_group", "road_address", "latitude", "longitude", "phone", "website_url",
-    "closed_days", "opening_hours", "free_parking", "paid_parking", "has_admission_fee",
-    "admission_fee", "admission_fee_detail", "has_age_limit", "minimum_age", "nursing_room",
-    "stroller_rental", "reservation_url", "space_type", "resident_discount",
-    "diaper_changing_table", "photo_url", "description", "review_summary",
-]
-BOOKMARK_COLUMNS = ["bookmark_id", "nickname", "place_id", "created_at"]
-BOOLEAN_COLUMNS = {
-    "free_parking", "paid_parking", "has_admission_fee", "has_age_limit", "nursing_room",
-    "stroller_rental", "resident_discount", "diaper_changing_table",
+REGIONS = ["전체", "구좌/조천", "서귀포시", "성산/표선", "안덕/대정", "애월/한림", "제주시"]
+FEATURE_FILTERS = {
+    "입장료 있음": "has_admission_fee",
+    "연령제한 있음": "has_age_limit",
+    "수유실 있음": "nursing_room",
+    "유모차 대여 가능": "stroller_rental",
+    "기저귀 교환대 있음": "diaper_changing_table",
+    "도민 할인 있음": "resident_discount",
 }
-NUMERIC_COLUMNS = {"admission_fee", "minimum_age", "latitude", "longitude"}
-FILTER_LABELS = {
-    "free_parking": "무료주차",
-    "paid_parking": "유료주차",
-    "nursing_room": "수유실",
-    "stroller_rental": "유모차 대여",
-    "diaper_changing_table": "기저귀교환대",
-    "resident_discount": "도민 할인",
-}
+BOOL_COLUMNS = list(FEATURE_FILTERS.values())
 
 
-st.set_page_config(page_title="제주아이랑", page_icon="🍊", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="제주 아이랑",
+    page_icon="🍊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
 st.markdown(
     """
     <style>
-      .block-container {padding-top: 2rem; padding-bottom: 3rem; max-width: 1240px;}
-      [data-testid="stSidebar"] {background: #fffaf2;}
-      .hero {padding: 1.4rem 1.6rem; border: 1px solid #f4d7b6; border-radius: 22px;
-        background: linear-gradient(135deg, #fff8ed 0%, #fff 62%, #f0fbf7 100%); margin-bottom: 1.2rem;}
-      .hero h1 {margin: 0 0 .35rem; color: #27352d; font-size: 2.15rem;}
-      .hero p {margin: 0; color: #66736c; font-size: 1.02rem;}
-      .badge {display: inline-block; margin: 0 .35rem .35rem 0; padding: .28rem .6rem;
-        border-radius: 999px; background: #eef8f3; color: #27624a; border: 1px solid #cfe8dc; font-size: .84rem;}
-      .detail-card {border: 1px solid #e9e5dd; border-radius: 18px; padding: 1.1rem 1.25rem;
-        background: #fff; box-shadow: 0 5px 18px rgba(63, 54, 42, .05);}
-      .muted {color: #758078; font-size: .92rem;}
-      .empty-photo {min-height: 230px; border-radius: 18px; background: #f4f1ea; display: flex;
-        align-items: center; justify-content: center; color: #827b70; border: 1px dashed #d7d0c3;}
-      div[data-testid="stMetric"] {background: #fff; border: 1px solid #ece8df; padding: .8rem 1rem; border-radius: 16px;}
+    :root {
+        --jeju-surface: color-mix(in srgb, var(--background-color) 94%, var(--text-color) 6%);
+        --jeju-soft-surface: color-mix(in srgb, var(--secondary-background-color) 88%, var(--background-color) 12%);
+        --jeju-accent-soft: color-mix(in srgb, var(--primary-color) 14%, var(--background-color) 86%);
+        --jeju-border: color-mix(in srgb, var(--text-color) 16%, transparent);
+        --jeju-muted: color-mix(in srgb, var(--text-color) 68%, transparent);
+    }
+    /* Streamlit's fixed header is about 3.75rem tall. Keep content below it. */
+    [data-testid="stAppViewBlockContainer"],
+    .block-container {
+        max-width: 1180px;
+        padding-top: 5rem;
+        padding-bottom: 4rem;
+    }
+    [data-testid="stSidebar"] {
+        background: var(--secondary-background-color);
+        color: var(--text-color);
+    }
+    [data-testid="stSidebarContent"] {padding-top: 1rem;}
+    .hero {
+        padding: 2.2rem 2.4rem; border-radius: 24px;
+        background: linear-gradient(
+            135deg,
+            color-mix(in srgb, #f39a2e 18%, var(--background-color)) 0%,
+            var(--jeju-accent-soft) 55%,
+            color-mix(in srgb, #35a66f 16%, var(--background-color)) 100%
+        );
+        border: 1px solid var(--jeju-border);
+        margin-bottom: 1.6rem;
+    }
+    .hero h1 {margin: 0; color: var(--text-color); font-size: 2.55rem;}
+    .hero p {margin: .55rem 0 0; color: var(--jeju-muted); font-size: 1.08rem;}
+    .section-title {font-size: 1.45rem; font-weight: 750; color: var(--text-color); margin: .8rem 0 .3rem;}
+    .place-card {
+        min-height: 145px; padding: 1.15rem; border: 1px solid var(--jeju-border);
+        border-radius: 18px; background: var(--jeju-surface);
+        box-shadow: 0 3px 14px color-mix(in srgb, var(--text-color) 8%, transparent);
+    }
+    .place-card h3 {margin: .2rem 0 .45rem; font-size: 1.12rem; color: var(--text-color);}
+    .place-card p {margin: .25rem 0; color: var(--jeju-muted); font-size: .91rem;}
+    .tag {
+        display: inline-block; background: var(--jeju-accent-soft); color: var(--text-color);
+        border: 1px solid var(--jeju-border); border-radius: 999px;
+        padding: .22rem .58rem; margin: .1rem .18rem .1rem 0; font-size: .8rem;
+    }
+    .info-box {
+        padding: 1rem 1.1rem; border-radius: 14px; background: var(--jeju-soft-surface);
+        border: 1px solid var(--jeju-border); margin-bottom: .6rem;
+    }
+    .info-label {color: var(--jeju-muted); font-size: .84rem; margin-bottom: .22rem;}
+    .info-value {color: var(--text-color); white-space: pre-wrap; overflow-wrap: anywhere;}
+    .muted {color: var(--jeju-muted);}
+    .spacer {height: 1.3rem;}
+    div.stButton > button {border-radius: 12px;}
+    @media (max-width: 768px) {
+        [data-testid="stAppViewBlockContainer"],
+        .block-container {padding-top: 4.5rem;}
+        .hero {padding: 1.5rem 1.25rem;}
+        .hero h1 {font-size: 2rem;}
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 
-def _as_bool(value: object) -> bool:
+def clean_text(value: object, fallback: str = "정보 없음") -> str:
     if pd.isna(value):
+        return fallback
+    text = str(value).strip()
+    return text if text else fallback
+
+
+def parse_bool(value: object) -> object:
+    """Return True/False for known values and pd.NA for missing/unknown values."""
+    if pd.isna(value):
+        return pd.NA
+    normalized = str(value).strip().lower()
+    if normalized in {"true", "1", "yes", "y", "예"}:
+        return True
+    if normalized in {"false", "0", "no", "n", "아니오"}:
         return False
-    return str(value).strip().lower() in {"true", "1", "yes", "y", "예"}
+    return pd.NA
 
 
 @st.cache_data(show_spinner=False)
-def load_places(path: str) -> tuple[pd.DataFrame, tuple[str, ...]]:
-    frame = pd.read_csv(path, encoding="utf-8-sig", dtype="string")
-    source_columns = set(frame.columns)
-    missing = tuple(column for column in PLACE_COLUMNS if column not in source_columns)
-
-    for column in PLACE_COLUMNS:
+def load_places(path: Path, modified_at: float) -> pd.DataFrame:
+    del modified_at  # cache invalidation key
+    frame = pd.read_csv(path, dtype={"place_id": "string"})
+    frame.columns = frame.columns.str.strip()
+    for column in BOOL_COLUMNS:
         if column not in frame.columns:
-            frame[column] = False if column in BOOLEAN_COLUMNS else pd.NA
-    for column in BOOLEAN_COLUMNS:
-        frame[column] = frame[column].map(_as_bool)
-    for column in NUMERIC_COLUMNS:
-        frame[column] = pd.to_numeric(frame[column], errors="coerce")
-
-    if "place_id" not in source_columns:
-        frame["place_id"] = [f"ROW{i:03d}" for i in range(1, len(frame) + 1)]
-    if "place_name" not in source_columns:
-        frame["place_name"] = [f"이름 없는 장소 {i}" for i in range(1, len(frame) + 1)]
-    return frame, missing
-
-
-def load_bookmarks() -> tuple[pd.DataFrame, tuple[str, ...]]:
-    if not BOOKMARKS_PATH.exists() or BOOKMARKS_PATH.stat().st_size == 0:
-        return pd.DataFrame(columns=BOOKMARK_COLUMNS), tuple()
-    frame = pd.read_csv(BOOKMARKS_PATH, encoding="utf-8-sig", dtype="string")
-    source_columns = set(frame.columns)
-    missing = tuple(column for column in BOOKMARK_COLUMNS if column not in source_columns)
-    for column in BOOKMARK_COLUMNS:
+            frame[column] = pd.Series(pd.NA, index=frame.index, dtype="boolean")
+        else:
+            frame[column] = frame[column].map(parse_bool).astype("boolean")
+    for column in ("latitude", "longitude"):
         if column not in frame.columns:
             frame[column] = pd.NA
-    return frame[BOOKMARK_COLUMNS], missing
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    frame["_data_order"] = range(len(frame))
+    return frame
 
 
-def _next_bookmark_id(bookmarks: pd.DataFrame) -> str:
-    numbers = []
-    for value in bookmarks.get("bookmark_id", pd.Series(dtype="string")).dropna():
-        match = re.fullmatch(r"B(\d+)", str(value).strip(), flags=re.IGNORECASE)
-        if match:
-            numbers.append(int(match.group(1)))
-    return f"B{max(numbers, default=0) + 1:03d}"
+def get_places() -> pd.DataFrame:
+    if not PLACES_PATH.exists():
+        st.error(f"장소 데이터 파일을 찾을 수 없습니다: {PLACES_PATH}")
+        st.stop()
+    return load_places(PLACES_PATH, PLACES_PATH.stat().st_mtime)
 
 
-def save_bookmark(nickname: str, place_id: str) -> tuple[bool, str]:
-    nickname = nickname.strip()
-    if not nickname:
-        return False, "닉네임을 입력해 주세요."
-    if len(nickname) > 20:
-        return False, "닉네임은 20자 이내로 입력해 주세요."
-    bookmarks, missing = load_bookmarks()
-    if missing:
-        return False, f"즐겨찾기 파일에 필요한 컬럼이 없습니다: {', '.join(missing)}"
-    duplicate = bookmarks["nickname"].fillna("").str.strip().eq(nickname) & bookmarks["place_id"].fillna("").str.strip().eq(place_id)
-    if duplicate.any():
-        return False, "이미 즐겨찾기에 저장한 장소예요."
+def empty_bookmarks() -> pd.DataFrame:
+    return pd.DataFrame(columns=["bookmark_id", "nickname", "place_id", "created_at"])
 
-    new_row = pd.DataFrame([{
-        "bookmark_id": _next_bookmark_id(bookmarks), "nickname": nickname, "place_id": place_id,
-        "created_at": datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M:%S"),
-    }])
-    updated = pd.concat([bookmarks, new_row], ignore_index=True)[BOOKMARK_COLUMNS]
+
+def load_bookmarks() -> pd.DataFrame:
+    if not BOOKMARKS_PATH.exists() or BOOKMARKS_PATH.stat().st_size == 0:
+        return empty_bookmarks()
+    try:
+        frame = pd.read_csv(BOOKMARKS_PATH, dtype="string")
+    except (pd.errors.EmptyDataError, UnicodeDecodeError):
+        return empty_bookmarks()
+    for column in empty_bookmarks().columns:
+        if column not in frame.columns:
+            frame[column] = pd.NA
+    return frame[list(empty_bookmarks().columns)]
+
+
+def write_bookmarks(frame: pd.DataFrame) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     handle, temp_name = tempfile.mkstemp(prefix="bookmarks_", suffix=".csv", dir=DATA_DIR)
     os.close(handle)
     try:
-        updated.to_csv(temp_name, index=False, encoding="utf-8-sig")
+        frame.to_csv(temp_name, index=False, encoding="utf-8-sig")
         os.replace(temp_name, BOOKMARKS_PATH)
     finally:
         if os.path.exists(temp_name):
-            os.unlink(temp_name)
-    return True, "즐겨찾기에 저장했습니다."
+            os.remove(temp_name)
 
 
-def text(value: object, fallback: str = "정보 없음") -> str:
-    return fallback if pd.isna(value) or str(value).strip() == "" else str(value).strip()
+def initialize_state() -> None:
+    defaults = {
+        "page": "home",
+        "selected_place_id": None,
+        "selected_region": "전체",
+        "search_query": "",
+        "category_filter": [],
+        "space_filter": [],
+        "parking_filter": [],
+        "feature_filter": [],
+        "sort_order": "기본순",
+        "nickname": "",
+        "bookmark_lookup": "",
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+    # Streamlit normally removes widget keys when their page is not rendered.
+    # Reassigning them keeps the list controls stable while the detail page is open.
+    for key in (
+        "selected_region",
+        "search_query",
+        "category_filter",
+        "space_filter",
+        "parking_filter",
+        "feature_filter",
+        "sort_order",
+    ):
+        widget_key = f"_{key}_widget"
+        if widget_key in st.session_state:
+            st.session_state[widget_key] = st.session_state[widget_key]
 
 
-def safe_url(value: object) -> str | None:
-    candidate = text(value, "")
-    parsed = urlparse(candidate)
-    return candidate if parsed.scheme in {"http", "https"} and parsed.netloc else None
+def go_to(page: str, place_id: str | None = None) -> None:
+    st.session_state.page = page
+    st.session_state.selected_place_id = place_id
 
 
-def fee_label(row: pd.Series, available: set[str]) -> str:
-    if "has_admission_fee" in available and not bool(row.get("has_admission_fee", False)):
-        return "무료"
-    fee = row.get("admission_fee")
-    if "admission_fee" in available and pd.notna(fee):
-        return f"{int(fee):,}원부터"
-    return "유료" if "has_admission_fee" in available else "정보 없음"
+def select_region(region: str) -> None:
+    st.session_state.selected_region = region
+    st.session_state.page = "list"
 
 
-def badge_html(row: pd.Series, available: set[str]) -> str:
-    badges = []
-    for column in ("category_level_2", "space_type"):
-        if column in available and text(row.get(column), ""):
-            badges.append(text(row.get(column)))
-    for column, label in FILTER_LABELS.items():
-        if column in available and bool(row.get(column, False)):
-            badges.append(label)
-    return "".join(f'<span class="badge">{html.escape(label)}</span>' for label in badges)
+def reset_filters() -> None:
+    reset_values = {
+        "selected_region": "전체",
+        "search_query": "",
+        "category_filter": [],
+        "space_filter": [],
+        "parking_filter": [],
+        "feature_filter": [],
+        "sort_order": "기본순",
+    }
+    for key, value in reset_values.items():
+        st.session_state[key] = value
+        widget_key = f"_{key}_widget"
+        if widget_key in st.session_state:
+            st.session_state[widget_key] = value
 
 
-def link_line(label: str, value: object) -> None:
-    url = safe_url(value)
-    if url:
-        st.markdown(f"[{label}]({url})")
+def prepare_filter_widget(state_key: str) -> str:
+    widget_key = f"_{state_key}_widget"
+    if widget_key not in st.session_state:
+        st.session_state[widget_key] = st.session_state[state_key]
+    return widget_key
 
 
-def show_place_detail(row: pd.Series, available: set[str], bookmark_ready: bool) -> None:
-    st.markdown("### 장소 상세정보")
-    photo_col, info_col = st.columns([1, 1.6], gap="large")
-    with photo_col:
-        photo_url = safe_url(row.get("photo_url")) if "photo_url" in available else None
-        if photo_url and "example.com" not in photo_url:
-            st.image(photo_url, width="stretch")
-        elif "photo_url" in available:
-            st.markdown('<div class="empty-photo">🍊 장소 사진 준비 중</div>', unsafe_allow_html=True)
-
-    with info_col:
-        location_parts = [text(row.get(c), "") for c in ("region_group", "city_name", "legal_dong_name") if c in available]
-        location = " · ".join(part for part in location_parts if part)
-        description = html.escape(text(row.get("description"))) if "description" in available else ""
-        st.markdown(
-            f'<div class="detail-card"><div class="muted">{html.escape(location)}</div>'
-            f'<h2 style="margin:.25rem 0 .55rem;">{html.escape(text(row.get("place_name")))}</h2>'
-            f'<div>{badge_html(row, available)}</div><p style="margin:.7rem 0 0;">{description}</p></div>',
-            unsafe_allow_html=True,
-        )
-        metrics = []
-        if "opening_hours" in available:
-            metrics.append(("운영시간", text(row.get("opening_hours"), "미정")))
-        if {"has_admission_fee", "admission_fee"} & available:
-            metrics.append(("이용요금", fee_label(row, available)))
-        if "closed_days" in available:
-            metrics.append(("휴무일", text(row.get("closed_days"), "미정")))
-        if metrics:
-            for column, (label, value) in zip(st.columns(len(metrics)), metrics):
-                column.metric(label, value)
-
-    left, right = st.columns(2, gap="large")
-    with left:
-        st.markdown("#### 이용 정보")
-        if "road_address" in available:
-            st.write(f"**주소**  {text(row.get('road_address'))}")
-        if "phone" in available:
-            st.write(f"**연락처**  {text(row.get('phone'))}")
-        if "admission_fee_detail" in available:
-            st.write(f"**요금 안내**  {text(row.get('admission_fee_detail'), fee_label(row, available))}")
-        if "has_age_limit" in available:
-            if bool(row.get("has_age_limit", False)) and "minimum_age" in available and pd.notna(row.get("minimum_age")):
-                st.write(f"**최소 이용 연령**  {int(row['minimum_age'])}세")
-            else:
-                st.write("**연령 제한**  없음")
-        if "website_url" in available:
-            link_line("홈페이지 열기 ↗", row.get("website_url"))
-        if "reservation_url" in available:
-            link_line("예약 페이지 열기 ↗", row.get("reservation_url"))
-    with right:
-        if "review_summary" in available:
-            st.markdown("#### 방문 참고")
-            st.write(text(row.get("review_summary"), "등록된 후기 요약이 없습니다."))
-        if {"latitude", "longitude"}.issubset(available) and pd.notna(row.get("latitude")) and pd.notna(row.get("longitude")):
-            st.markdown("#### 위치")
-            st.map(pd.DataFrame({"lat": [float(row["latitude"])], "lon": [float(row["longitude"])]}), zoom=11)
-
-    if bookmark_ready and "place_id" in available:
-        st.markdown("#### 즐겨찾기 저장")
-        with st.form(f"bookmark_form_{text(row.get('place_id'))}", clear_on_submit=False):
-            nickname = st.text_input("닉네임", placeholder="예: 아진맘", max_chars=20)
-            submitted = st.form_submit_button("이 장소 저장", type="primary")
-            if submitted:
-                success, message = save_bookmark(nickname, text(row.get("place_id"), ""))
-                (st.success if success else st.warning)(message)
+def hero() -> None:
+    st.markdown(
+        """
+        <div class="hero">
+            <h1>🍊 제주 아이랑</h1>
+            <p>제주에서 아이와 함께 가볼 만한 곳을 쉽고 빠르게 찾아보세요.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
-if not PLACES_PATH.exists():
-    st.error(f"장소 데이터 파일을 찾을 수 없습니다: {PLACES_PATH}")
-    st.stop()
+def display_tags(place: pd.Series, include_region: bool = True) -> str:
+    values = [clean_text(place.get("category"), "")]
+    if include_region:
+        values.append(clean_text(place.get("region_group"), ""))
+    values.extend(
+        [clean_text(place.get("space_type"), ""), clean_text(place.get("parking"), "")]
+    )
+    return "".join(f'<span class="tag">{value}</span>' for value in values if value)
 
-places, missing_place_columns = load_places(str(PLACES_PATH))
-available = set(PLACE_COLUMNS) - set(missing_place_columns)
-bookmarks, missing_bookmark_columns = load_bookmarks()
-bookmark_ready = not missing_bookmark_columns
 
-st.markdown(
-    '<div class="hero"><h1>제주아이랑 🍊</h1><p>아이의 나이와 외출 상황에 맞는 제주 아이 동반 장소를 쉽고 빠르게 찾아보세요.</p></div>',
-    unsafe_allow_html=True,
-)
-if missing_place_columns:
-    st.warning(f"장소 데이터에서 누락된 컬럼: {', '.join(missing_place_columns)} · 관련 기능만 숨기고 나머지 화면은 계속 표시합니다.")
-if missing_bookmark_columns:
-    st.warning(f"즐겨찾기 데이터에서 누락된 컬럼: {', '.join(missing_bookmark_columns)} · 즐겨찾기 기능을 숨깁니다.")
+def render_place_grid(frame: pd.DataFrame, key_prefix: str, columns: int = 3) -> None:
+    for start in range(0, len(frame), columns):
+        row_columns = st.columns(columns)
+        for offset, (_, place) in enumerate(frame.iloc[start : start + columns].iterrows()):
+            with row_columns[offset]:
+                description = clean_text(place.get("description"), "아이와 함께 둘러볼 제주 장소")
+                location = " · ".join(
+                    part
+                    for part in [clean_text(place.get("city_name"), ""), clean_text(place.get("legal_dong_name"), "")]
+                    if part
+                )
+                st.markdown(
+                    f"""
+                    <div class="place-card">
+                        <div>{display_tags(place)}</div>
+                        <h3>{clean_text(place.get('place_name'))}</h3>
+                        <p>{description}</p>
+                        <p>📍 {location or '위치 정보 없음'}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.button(
+                    "장소 보기",
+                    key=f"{key_prefix}_{place['place_id']}",
+                    use_container_width=True,
+                    on_click=go_to,
+                    args=("detail", str(place["place_id"])),
+                )
 
-explore_tab, bookmark_tab = st.tabs(["🔎 장소 찾기", "⭐ 즐겨찾기"])
-with explore_tab:
-    selected_region = "전체"
-    if "region_group" in available:
-        preferred = ["구좌/조천", "서귀포시", "성산/표선", "안덕/대정", "애월/한림", "제주시"]
-        regions = [str(value) for value in places["region_group"].dropna().unique()]
-        options = ["전체"] + [value for value in preferred if value in regions]
-        options += sorted(value for value in regions if value not in options)
-        st.markdown("#### 어느 지역으로 갈까요?")
-        selected_region = st.radio("지역 선택", options, horizontal=True, label_visibility="collapsed")
 
+def render_home(places: pd.DataFrame) -> None:
+    hero()
+    top_left, top_right = st.columns([5, 1])
+    with top_left:
+        st.markdown('<div class="section-title">어느 지역으로 갈까요?</div>', unsafe_allow_html=True)
+        st.caption("지역을 선택하면 그 지역의 장소와 상세 필터를 확인할 수 있어요.")
+    with top_right:
+        st.button("즐겨찾기 조회", use_container_width=True, on_click=go_to, args=("bookmarks",))
+
+    region_columns = st.columns(4)
+    for index, region in enumerate(REGIONS):
+        count = len(places) if region == "전체" else int((places["region_group"] == region).sum())
+        with region_columns[index % 4]:
+            st.button(
+                f"{region}  {count}",
+                key=f"home_region_{region}",
+                use_container_width=True,
+                on_click=select_region,
+                args=(region,),
+            )
+
+    st.markdown('<div class="section-title">장소를 둘러보세요</div>', unsafe_allow_html=True)
+    st.caption("장소를 바로 선택하거나 지역을 먼저 골라 보세요.")
+    render_place_grid(places.head(6), "home_place")
+    st.button(
+        "전체 장소와 필터 보기 →",
+        use_container_width=True,
+        on_click=select_region,
+        args=("전체",),
+    )
+
+
+def filter_places(places: pd.DataFrame) -> pd.DataFrame:
+    result = places.copy()
+    region = st.session_state.selected_region
+    if region != "전체":
+        result = result[result["region_group"] == region]
+
+    query = st.session_state.search_query.strip()
+    if query:
+        result = result[result["place_name"].fillna("").str.contains(query, case=False, regex=False)]
+
+    for state_key, column in (
+        ("category_filter", "category"),
+        ("space_filter", "space_type"),
+        ("parking_filter", "parking"),
+    ):
+        selected = st.session_state[state_key]
+        if selected:
+            result = result[result[column].isin(selected)]
+
+    # Every selected convenience condition must be true (AND).
+    for label in st.session_state.feature_filter:
+        column = FEATURE_FILTERS[label]
+        result = result[result[column].fillna(False)]
+        if label == "도민 할인 있음":
+            # Free venues must not appear in resident-discount results.
+            result = result[result["has_admission_fee"].fillna(False)]
+
+    if st.session_state.sort_order == "장소명순 (가나다)":
+        result = result.sort_values("place_name", ascending=True, kind="stable", na_position="last")
+    else:
+        result = result.sort_values("_data_order", kind="stable")
+    return result
+
+
+def active_filter_labels() -> list[str]:
+    labels = []
+    if st.session_state.selected_region != "전체":
+        labels.append(st.session_state.selected_region)
+    labels.extend(st.session_state.category_filter)
+    labels.extend(st.session_state.space_filter)
+    labels.extend(st.session_state.parking_filter)
+    labels.extend(st.session_state.feature_filter)
+    if st.session_state.search_query.strip():
+        labels.append(f'검색: {st.session_state.search_query.strip()}')
+    return labels
+
+
+def render_list(places: pd.DataFrame) -> None:
     with st.sidebar:
-        st.markdown("## 조건으로 찾기")
-        search_columns = [column for column in ("place_name", "description", "review_summary") if column in available]
-        keyword = st.text_input("장소 검색", placeholder="장소명 또는 설명") if search_columns else ""
-        categories = st.multiselect("시설 유형", sorted(places["category_level_2"].dropna().astype(str).unique())) if "category_level_2" in available else []
-        space_types = st.multiselect("실내·실외", sorted(places["space_type"].dropna().astype(str).unique())) if "space_type" in available else []
-        active_boolean_filters = {}
-        visible_boolean_columns = [column for column in FILTER_LABELS if column in available]
-        if visible_boolean_columns:
-            st.markdown("##### 육아·주차 편의시설")
-            for column in visible_boolean_columns:
-                active_boolean_filters[column] = st.checkbox(FILTER_LABELS[column])
-        sort_options = ["기본순"]
-        if "admission_fee" in available:
-            sort_options.append("이용요금 낮은 순")
-        if "place_name" in available:
-            sort_options.append("장소명순")
-        sort_option = st.selectbox("정렬", sort_options)
+        st.title("장소 찾기")
+        st.session_state.selected_region = st.selectbox(
+            "지역",
+            REGIONS,
+            key=prepare_filter_widget("selected_region"),
+        )
+        st.session_state.search_query = st.text_input(
+            "장소명 검색",
+            key=prepare_filter_widget("search_query"),
+            placeholder="장소명을 입력하세요",
+        )
+        st.session_state.category_filter = st.multiselect(
+            "시설유형",
+            sorted(places["category"].dropna().astype(str).unique()),
+            key=prepare_filter_widget("category_filter"),
+        )
+        st.session_state.space_filter = st.multiselect(
+            "실내외 구분",
+            sorted(places["space_type"].dropna().astype(str).unique()),
+            key=prepare_filter_widget("space_filter"),
+        )
+        st.session_state.parking_filter = st.multiselect(
+            "주차 유형",
+            sorted(places["parking"].dropna().astype(str).unique()),
+            key=prepare_filter_widget("parking_filter"),
+        )
+        st.session_state.feature_filter = st.multiselect(
+            "편의·이용 조건 (모두 충족)",
+            list(FEATURE_FILTERS),
+            key=prepare_filter_widget("feature_filter"),
+            help="여러 항목을 선택하면 모든 조건을 충족하는 장소만 표시합니다.",
+        )
+        st.session_state.sort_order = st.selectbox(
+            "정렬",
+            ["기본순", "장소명순 (가나다)"],
+            key=prepare_filter_widget("sort_order"),
+        )
+        st.button("전체 조건 초기화", use_container_width=True, on_click=reset_filters)
+        st.divider()
+        st.button("처음 화면", use_container_width=True, on_click=go_to, args=("home",))
+        st.button("즐겨찾기 조회", use_container_width=True, on_click=go_to, args=("bookmarks",))
 
-    filtered = places.copy()
-    if "region_group" in available and selected_region != "전체":
-        filtered = filtered[filtered["region_group"].astype(str).eq(selected_region)]
-    if keyword.strip() and search_columns:
-        searchable = filtered[search_columns].fillna("").astype(str)
-        mask = searchable.apply(lambda column: column.str.contains(keyword.strip(), case=False, regex=False)).any(axis=1)
-        filtered = filtered[mask]
-    if categories:
-        filtered = filtered[filtered["category_level_2"].isin(categories)]
-    if space_types:
-        filtered = filtered[filtered["space_type"].isin(space_types)]
-    for column, enabled in active_boolean_filters.items():
-        if enabled:
-            filtered = filtered[filtered[column]]
-    if sort_option == "이용요금 낮은 순":
-        filtered = filtered.assign(_fee=filtered["admission_fee"].fillna(float("inf"))).sort_values("_fee").drop(columns="_fee")
-    elif sort_option == "장소명순":
-        filtered = filtered.sort_values("place_name")
+    filtered = filter_places(places)
+    selected_categories = st.session_state.category_filter
+    if len(selected_categories) == 1:
+        title = f"{selected_categories[0]} 장소 목록"
+    elif len(selected_categories) > 1:
+        title = "선택한 시설유형 장소 목록"
+    else:
+        title = "전체 장소 목록"
 
-    metric_values = [("검색 결과", f"{len(filtered)}곳")]
-    if "has_admission_fee" in available:
-        metric_values.append(("무료 입장", f"{int((~filtered['has_admission_fee']).sum())}곳"))
-    if "space_type" in available:
-        metric_values.append(("실내 장소", f"{int(filtered['space_type'].eq('실내').sum())}곳"))
-    for column, (label, value) in zip(st.columns(len(metric_values)), metric_values):
-        column.metric(label, value)
+    st.title(title)
+    st.caption(f"조건에 맞는 장소 {len(filtered):,}곳")
+    labels = active_filter_labels()
+    if labels:
+        st.markdown(" ".join(f'<span class="tag">{label}</span>' for label in labels), unsafe_allow_html=True)
+        st.write("")
 
     if filtered.empty:
-        st.info("선택한 조건에 맞는 장소가 없습니다. 필터를 조금 줄여 보세요.")
-    else:
-        st.markdown("### 장소 목록")
-        display_columns = []
-        rename_map = {}
-        for source, label in (("place_name", "장소명"), ("region_group", "지역"), ("category_level_2", "시설 유형"),
-                              ("space_type", "공간"), ("opening_hours", "운영시간")):
-            if source in available:
-                display_columns.append(source)
-                rename_map[source] = label
-        list_frame = filtered.copy()
-        if {"has_admission_fee", "admission_fee"} & available:
-            list_frame["fee_display"] = list_frame.apply(lambda row: fee_label(row, available), axis=1)
-            display_columns.append("fee_display")
-            rename_map["fee_display"] = "이용요금"
-        st.dataframe(list_frame[display_columns].rename(columns=rename_map), hide_index=True, width="stretch")
+        st.info("선택한 조건에 맞는 장소가 없습니다. 조건을 일부 해제해 보세요.")
+        st.button("모든 조건 초기화", on_click=reset_filters)
+        return
+    render_place_grid(filtered, "list_place")
 
-        place_ids = filtered["place_id"].astype(str).tolist()
-        names = dict(zip(filtered["place_id"].astype(str), filtered["place_name"].astype(str)))
-        selected_id = st.selectbox("상세정보를 볼 장소", place_ids, format_func=lambda value: names.get(value, value))
-        selected_row = filtered[filtered["place_id"].astype(str).eq(selected_id)].iloc[0]
-        show_place_detail(selected_row, available, bookmark_ready)
 
-with bookmark_tab:
-    st.markdown("### 닉네임별 즐겨찾기")
-    if not bookmark_ready:
-        st.info("즐겨찾기 데이터 컬럼이 복구되면 이 기능이 다시 표시됩니다.")
+def yes_no_unknown(value: object, yes: str = "있음", no: str = "없음") -> str:
+    if pd.isna(value):
+        return "정보 없음"
+    return yes if bool(value) else no
+
+
+def info_box(label: str, value: object) -> None:
+    st.markdown(
+        f"""
+        <div class="info-box">
+            <div class="info-label">{label}</div>
+            <div class="info-value">{clean_text(value)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_detail(places: pd.DataFrame) -> None:
+    place_id = st.session_state.selected_place_id
+    selected = places[places["place_id"].astype(str) == str(place_id)]
+    if selected.empty:
+        st.error("선택한 장소를 찾을 수 없습니다.")
+        st.button("목록으로 돌아가기", on_click=go_to, args=("list",))
+        return
+    place = selected.iloc[0]
+
+    left, right = st.columns([1, 5])
+    with left:
+        st.button("← 목록으로", use_container_width=True, on_click=go_to, args=("list",))
+    with right:
+        st.caption("장소 상세정보")
+    st.title(clean_text(place.get("place_name")))
+    st.markdown(display_tags(place), unsafe_allow_html=True)
+    description = clean_text(place.get("description"), "아이와 함께 둘러볼 제주 장소입니다.")
+    st.markdown(f"### {description}")
+
+    photo_url = clean_text(place.get("photo_url"), "")
+    if photo_url:
+        st.image(photo_url, use_container_width=True)
+
+    st.subheader("위치")
+    info_box("도로명주소", place.get("road_address"))
+    lat, lon = place.get("latitude"), place.get("longitude")
+    if pd.notna(lat) and pd.notna(lon):
+        st.map(pd.DataFrame({"lat": [float(lat)], "lon": [float(lon)]}), zoom=13, use_container_width=True)
     else:
-        nickname_options = sorted(bookmarks["nickname"].dropna().astype(str).str.strip().unique())
-        if not nickname_options:
-            st.info("아직 저장된 즐겨찾기가 없습니다. 장소 상세에서 첫 장소를 저장해 보세요.")
+        st.info("위치 정보가 등록되지 않았습니다.")
+
+    st.subheader("운영 및 이용 정보")
+    col1, col2 = st.columns(2)
+    with col1:
+        info_box("운영시간", place.get("opening_hours"))
+        info_box("휴무일", place.get("closed_days"))
+        info_box("입장료", yes_no_unknown(place.get("has_admission_fee"), "있음", "무료"))
+        info_box("이용요금 상세", place.get("admission_fee_detail"))
+    with col2:
+        info_box("전화번호", place.get("phone"))
+        info_box("주차", place.get("parking"))
+        info_box("연령제한", yes_no_unknown(place.get("has_age_limit")))
+        info_box("연령제한 상세", place.get("age_limit_detail"))
+
+    st.subheader("편의시설")
+    conveniences = [
+        ("실내외", clean_text(place.get("space_type"))),
+        ("수유실", yes_no_unknown(place.get("nursing_room"), "보유", "미보유")),
+        ("유모차 대여", yes_no_unknown(place.get("stroller_rental"), "가능", "불가")),
+        ("기저귀 교환대", yes_no_unknown(place.get("diaper_changing_table"), "보유", "미보유")),
+        ("도민 할인", yes_no_unknown(place.get("resident_discount"), "할인 있음", "할인 없음")),
+    ]
+    convenience_columns = st.columns(len(conveniences))
+    for column, (label, value) in zip(convenience_columns, conveniences):
+        with column:
+            st.metric(label, value)
+
+    link_columns = st.columns(2)
+    website = clean_text(place.get("website_url"), "")
+    reservation = clean_text(place.get("reservation_url"), "")
+    if website:
+        link_columns[0].link_button("홈페이지 열기", website, use_container_width=True)
+    if reservation:
+        link_columns[1].link_button("예약하기", reservation, use_container_width=True)
+
+    review = clean_text(place.get("review_summary"), "")
+    if review:
+        st.subheader("방문 후기 요약")
+        st.info(review)
+
+    st.markdown('<div class="spacer"></div>', unsafe_allow_html=True)
+    st.divider()
+    st.subheader("즐겨찾기 저장")
+    st.caption("닉네임으로 저장해 두면 나중에 다시 찾아볼 수 있어요.")
+    nickname = st.text_input("닉네임", key="nickname", max_chars=30, placeholder="예: 아진맘")
+    if st.button("즐겨찾기에 저장", type="primary"):
+        normalized = nickname.strip()
+        if not normalized:
+            st.warning("닉네임을 입력해 주세요.")
         else:
-            nickname = st.selectbox("닉네임", nickname_options)
-            mine = bookmarks[bookmarks["nickname"].fillna("").str.strip().eq(nickname)].copy()
-            if "place_id" in available:
-                mine = mine.merge(places, on="place_id", how="left")
-            if "created_at" in mine.columns:
-                mine = mine.sort_values("created_at", ascending=False)
-            st.caption(f"{nickname}님이 저장한 장소 {len(mine)}곳")
-            columns = [column for column in ("place_name", "region_group", "category_level_2", "space_type", "created_at") if column in mine.columns]
-            labels = {"place_name": "장소명", "region_group": "지역", "category_level_2": "시설 유형", "space_type": "공간", "created_at": "저장 시각"}
-            st.dataframe(mine[columns].rename(columns=labels), hide_index=True, width="stretch")
-            ids = mine["place_id"].dropna().astype(str).tolist() if "place_id" in mine.columns else []
-            if ids and "place_id" in available:
-                selected_id = st.selectbox("상세정보를 볼 즐겨찾기", ids, key="bookmark_detail")
-                selected = places[places["place_id"].astype(str).eq(selected_id)]
-                if not selected.empty:
-                    show_place_detail(selected.iloc[0], available, bookmark_ready)
+            bookmarks = load_bookmarks()
+            duplicate = (
+                bookmarks["nickname"].fillna("").str.strip().eq(normalized)
+                & bookmarks["place_id"].astype(str).eq(str(place_id))
+            ).any()
+            if duplicate:
+                st.info("이미 즐겨찾기에 저장한 장소입니다.")
+            else:
+                numeric_ids = pd.to_numeric(
+                    bookmarks["bookmark_id"].fillna("").str.extract(r"(\d+)", expand=False),
+                    errors="coerce",
+                )
+                next_number = int(numeric_ids.max()) + 1 if numeric_ids.notna().any() else 1
+                new_row = pd.DataFrame(
+                    [{
+                        "bookmark_id": f"B{next_number:03d}",
+                        "nickname": normalized,
+                        "place_id": str(place_id),
+                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    }]
+                )
+                write_bookmarks(pd.concat([bookmarks, new_row], ignore_index=True))
+                st.success("즐겨찾기에 저장했습니다.")
+
+
+def render_bookmarks(places: pd.DataFrame) -> None:
+    st.button("← 처음 화면", on_click=go_to, args=("home",))
+    st.title("즐겨찾기 조회")
+    st.caption("저장할 때 사용한 닉네임을 입력하세요.")
+    nickname = st.text_input("닉네임", key="bookmark_lookup", max_chars=30)
+    normalized = nickname.strip()
+    if not normalized:
+        st.info("닉네임을 입력하면 저장한 장소가 표시됩니다.")
+        return
+
+    bookmarks = load_bookmarks()
+    mine = bookmarks[bookmarks["nickname"].fillna("").str.strip() == normalized].copy()
+    if mine.empty:
+        st.info("이 닉네임으로 저장한 즐겨찾기가 없습니다.")
+        return
+    mine["_created"] = pd.to_datetime(mine["created_at"], errors="coerce")
+    mine = mine.sort_values("_created", ascending=False, na_position="last")
+    joined = mine.merge(places, on="place_id", how="left", suffixes=("_bookmark", ""))
+    st.caption(f"저장한 장소 {len(joined)}곳 · 최신 저장순")
+
+    for _, place in joined.iterrows():
+        card, actions = st.columns([5, 2])
+        with card:
+            st.markdown(
+                f"""
+                <div class="place-card">
+                    <div>{display_tags(place)}</div>
+                    <h3>{clean_text(place.get('place_name'), '삭제되었거나 찾을 수 없는 장소')}</h3>
+                    <p>저장일시 · {clean_text(place.get('created_at'))}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with actions:
+            if pd.notna(place.get("place_name")):
+                st.button(
+                    "상세 보기",
+                    key=f"bookmark_open_{place['bookmark_id']}",
+                    use_container_width=True,
+                    on_click=go_to,
+                    args=("detail", str(place["place_id"])),
+                )
+            if st.button(
+                "삭제", key=f"bookmark_delete_{place['bookmark_id']}", use_container_width=True
+            ):
+                updated = bookmarks[bookmarks["bookmark_id"] != place["bookmark_id"]]
+                write_bookmarks(updated)
+                st.rerun()
+
+
+def main() -> None:
+    initialize_state()
+    places = get_places()
+    page = st.session_state.page
+    if page == "home":
+        render_home(places)
+    elif page == "list":
+        render_list(places)
+    elif page == "detail":
+        render_detail(places)
+    elif page == "bookmarks":
+        render_bookmarks(places)
+    else:
+        st.session_state.page = "home"
+        st.rerun()
+
+
+if __name__ == "__main__":
+    main()
