@@ -342,19 +342,23 @@ st.markdown(
         box-shadow:0 10px 28px rgba(73,56,47,.10);
     }
     .detail-summary-card h1 {margin:0 0 .35rem; font-size:clamp(2rem,4vw,2.8rem); font-weight:850 !important;}
-    .detail-title-line {
-        display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;
+    .detail-actions {
+        display:grid; grid-template-columns:repeat(2,minmax(8rem,1fr));
+        gap:.55rem; width:100%; max-width:21rem; margin:.25rem 0 1rem;
     }
-    .detail-actions {display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;}
     .detail-mini-link {
-        display:inline-flex; align-items:center; gap:.3rem; padding:.5rem .75rem;
+        display:inline-flex; align-items:center; justify-content:center; gap:.3rem; padding:.55rem .75rem;
         border-radius:999px; background:var(--jeju-yellow-soft); color:var(--jeju-brown) !important;
         text-decoration:none !important; font-size:.86rem; font-weight:800;
         box-shadow:0 4px 12px rgba(73,56,47,.08); transition:transform .15s ease;
     }
     .detail-mini-link.reserve {background:var(--jeju-pink-soft);}
-    .detail-mini-link:hover {transform:translateY(-1px);}
-    .detail-description {margin:.15rem 0 1rem; color:var(--jeju-muted); font-size:1.05rem;}
+    .detail-mini-link:not(.disabled):hover {transform:translateY(-1px);}
+    .detail-mini-link.disabled {
+        background:#eee9e4; color:#aaa099 !important; box-shadow:none;
+        cursor:not-allowed; filter:saturate(.35);
+    }
+    .detail-description {margin:.15rem 0 .65rem; color:var(--jeju-muted); font-size:1.05rem;}
     .detail-tags {margin-bottom:.7rem;}
     .detail-core-row {
         display:grid; grid-template-columns:2rem 6rem minmax(0,1fr); gap:.5rem;
@@ -468,7 +472,7 @@ st.markdown(
         div[class*="st-key-favorite_name_"] button p {font-size:1.3rem !important;}
         .st-key-detail_photo [data-testid="stImage"] img, .detail-photo-placeholder {height:240px;}
         .detail-summary-card {padding:1.25rem;}
-        .detail-title-line {align-items:flex-start;}
+        .detail-actions {max-width:none; grid-template-columns:repeat(2,minmax(0,1fr));}
         .detail-core-row {grid-template-columns:1.7rem 5.2rem minmax(0,1fr);}
         .st-key-detail_points, .st-key-detail_visit, .st-key-detail_map {
             height:auto; min-height:auto; overflow-y:visible;
@@ -1381,26 +1385,33 @@ def render_detail(places: pd.DataFrame) -> None:
     ])
     website = clean_text(place.get("website_url"), "")
     reservation = clean_text(place.get("reservation_url"), "")
-    action_links = []
     if website.startswith(("http://", "https://")):
-        action_links.append(
+        website_action = (
             f'<a class="detail-mini-link" href="{escape(website, quote=True)}" '
             'target="_blank" rel="noopener noreferrer">🌐 홈페이지</a>'
         )
+    else:
+        website_action = (
+            '<span class="detail-mini-link disabled" aria-disabled="true" '
+            'title="등록된 홈페이지가 없습니다">🌐 홈페이지</span>'
+        )
     if reservation.startswith(("http://", "https://")):
-        action_links.append(
+        reservation_action = (
             f'<a class="detail-mini-link reserve" href="{escape(reservation, quote=True)}" '
             'target="_blank" rel="noopener noreferrer">🎟 예약하기</a>'
+        )
+    else:
+        reservation_action = (
+            '<span class="detail-mini-link reserve disabled" aria-disabled="true" '
+            'title="등록된 예약 링크가 없습니다">🎟 예약하기</span>'
         )
     st.markdown(
         f"""
         <section class="detail-summary-card">
             <div class="detail-tags">{display_tags(place)}</div>
-            <div class="detail-title-line">
-                <h1>{escape(clean_text(place.get('place_name')))}</h1>
-                <div class="detail-actions">{''.join(action_links)}</div>
-            </div>
+            <h1>{escape(clean_text(place.get('place_name')))}</h1>
             <p class="detail-description">{escape(description)}</p>
+            <div class="detail-actions">{website_action}{reservation_action}</div>
             <div>{rows}</div>
         </section>
         """,
