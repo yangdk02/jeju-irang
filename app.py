@@ -15,13 +15,17 @@ import numpy as np
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
+from PIL import Image
 from streamlit_geolocation import streamlit_geolocation
+
+from form_links import build_update_form_url
 
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
 ASSETS_DIR = APP_DIR / "assets"
 WELCOME_IMAGE_PATH = ASSETS_DIR / "welcome-family-jeju.png"
+FAVICON_PATH = ASSETS_DIR / "favicon.png"
 PLACES_PATH = DATA_DIR / "jeju-irang.csv"
 BOOKMARKS_PATH = DATA_DIR / "bookmarks.csv"
 BOOKMARK_BACKUP_DIR = DATA_DIR / "backups"
@@ -35,6 +39,15 @@ BOOKMARK_COLUMNS = [
     "memo",
 ]
 PASSWORD_ITERATIONS = 200_000
+
+GOOGLE_FORM_ENV_KEYS = {
+    "new_place_url": "GOOGLE_FORM_NEW_PLACE_URL",
+    "update_base_url": "GOOGLE_FORM_UPDATE_BASE_URL",
+    "request_type_entry": "GOOGLE_FORM_REQUEST_TYPE_ENTRY",
+    "target_place_name_entry": "GOOGLE_FORM_TARGET_PLACE_NAME_ENTRY",
+    "location_hint_entry": "GOOGLE_FORM_LOCATION_HINT_ENTRY",
+    "update_request_value": "GOOGLE_FORM_UPDATE_REQUEST_VALUE",
+}
 
 REGIONS = ["전체", "구좌/조천", "서귀포시", "성산/표선", "안덕/대정", "애월/한림", "제주시"]
 FEATURE_FILTERS = {
@@ -51,7 +64,7 @@ BOOL_COLUMNS = list(dict.fromkeys(column for column, _ in FEATURE_FILTERS.values
 
 st.set_page_config(
     page_title="제주아이랑",
-    page_icon="🍊",
+    page_icon=Image.open(FAVICON_PATH),
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -260,6 +273,17 @@ st.markdown(
         font-family:'Pretendard',sans-serif !important; font-weight:850 !important;
         letter-spacing:-.045em;
     }
+    .quiet-proposal {
+        margin:2rem 0 .2rem; text-align:center; color:var(--jeju-muted);
+        font-size:.84rem; line-height:1.5;
+    }
+    .quiet-proposal a {
+        color:var(--jeju-muted) !important; font-weight:650;
+        text-decoration:underline !important; text-underline-offset:.2rem;
+        text-decoration-color:#cfc2b8 !important;
+    }
+    .quiet-proposal a:hover {color:var(--jeju-orange-deep) !important;}
+    .quiet-proposal .disabled {color:#aaa099; cursor:not-allowed;}
     .favorites-intro {display:flex; align-items:flex-end; justify-content:space-between; gap:2rem; padding:2rem .5rem 1.3rem;}
     .favorites-intro p {margin:.2rem 0 0; color:var(--jeju-muted);}
     .favorites-title {font-family:'Pretendard',sans-serif !important; font-weight:850 !important;}
@@ -492,6 +516,56 @@ def clean_text(value: object, fallback: str = "정보 없음") -> str:
         return fallback
     text = str(value).strip()
     return text if text else fallback
+
+
+def get_google_form_settings() -> dict[str, str]:
+    settings: dict[str, str] = {}
+    try:
+        secret_section = st.secrets.get("google_form", {})
+    except (FileNotFoundError, KeyError, AttributeError):
+        secret_section = {}
+    for key, env_key in GOOGLE_FORM_ENV_KEYS.items():
+        secret_value = secret_section.get(key, "") if secret_section else ""
+        settings[key] = str(secret_value or os.getenv(env_key, "")).strip()
+    settings["update_request_value"] = (
+        settings["update_request_value"] or "기존 장소 수정"
+    )
+    return settings
+
+
+def get_place_update_form_url(place: pd.Series) -> str:
+    location_hint = clean_text(place.get("road_address"), "")
+    if not location_hint:
+        location_hint = " ".join(
+            value
+            for value in (
+                clean_text(place.get("city_name"), ""),
+                clean_text(place.get("legal_dong_name"), ""),
+            )
+            if value
+        )
+    return build_update_form_url(
+        get_google_form_settings(),
+        clean_text(place.get("place_name"), ""),
+        location_hint,
+    )
+
+
+def render_quiet_proposal_link(label: str, url: str) -> None:
+    if url:
+        content = (
+            f'<a href="{escape(url, quote=True)}" target="_blank" '
+            f'rel="noopener noreferrer">{escape(label)}</a>'
+        )
+    else:
+        content = (
+            f'<span class="disabled" title="Google Form 설정이 필요합니다">'
+            f'{escape(label)}</span>'
+        )
+    st.markdown(
+        f'<div class="quiet-proposal">{content}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def parse_bool(value: object) -> object:
@@ -1230,6 +1304,10 @@ def render_list(places: pd.DataFrame) -> None:
     if filtered.empty:
         st.info("조건에 맞는 장소가 없어요. 필터를 바꿔보세요.")
         st.button("모든 조건 초기화", on_click=reset_filters)
+        render_quiet_proposal_link(
+            "＋ 장소 제안하기",
+            get_google_form_settings().get("new_place_url", ""),
+        )
         return
 
     if st.session_state.view_mode == "표로 보기":
@@ -1238,6 +1316,10 @@ def render_list(places: pd.DataFrame) -> None:
         render_place_map(filtered)
     else:
         render_place_grid(filtered, "list_place")
+    render_quiet_proposal_link(
+        "＋ 장소 제안하기",
+        get_google_form_settings().get("new_place_url", ""),
+    )
 
 
 def yes_no_unknown(value: object, yes: str = "있음", no: str = "없음") -> str:
@@ -1494,6 +1576,11 @@ def render_detail(places: pd.DataFrame) -> None:
                 "무료/유료 주차": "무료/유료 주차 가능",
             }.get(parking_text, parking_text)
             st.markdown(f"{parking_icon} {escape(parking_label)}")
+
+    render_quiet_proposal_link(
+        "✎ 장소 정보 수정 제안",
+        get_place_update_form_url(place),
+    )
 
 
 
