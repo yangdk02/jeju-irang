@@ -20,6 +20,8 @@ from streamlit_geolocation import streamlit_geolocation
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
+ASSETS_DIR = APP_DIR / "assets"
+WELCOME_IMAGE_PATH = ASSETS_DIR / "welcome-family-jeju.png"
 PLACES_PATH = DATA_DIR / "jeju-irang.csv"
 BOOKMARKS_PATH = DATA_DIR / "bookmarks.csv"
 BOOKMARK_BACKUP_DIR = DATA_DIR / "backups"
@@ -123,7 +125,7 @@ st.markdown(
     }
     div[data-testid="stVerticalBlock"][class*="st-key-"] {border:0 !important;}
     .brand {
-        display: flex; align-items: center; gap: .75rem; min-height: 3.4rem;
+        display:flex; align-items:center; gap:1.25rem; min-height:3.4rem;
     }
     .brand-mark {
         position:relative; display:block; flex:0 0 auto; width:3.4rem; height:3.4rem;
@@ -142,7 +144,11 @@ st.markdown(
         content:"≈"; position:absolute; right:-.72rem; bottom:-.58rem;
         color:var(--jeju-sky); font-family:Arial,sans-serif; font-size:1.45rem; font-weight:900;
     }
-    .brand-name {margin:0; font-size:clamp(2rem,4vw,3rem); font-weight:400; letter-spacing:-.035em; line-height:1; white-space:nowrap;}
+    .brand-name {
+        margin:0; font-size:clamp(2rem,4vw,3rem); font-weight:400;
+        letter-spacing:-.035em; line-height:1; white-space:nowrap;
+        color:var(--jeju-orange) !important;
+    }
     .st-key-brand_header {
         margin-bottom:1rem; padding:1.35rem 1.55rem !important; border:0 !important;
         border-radius:0; background:transparent !important;
@@ -170,28 +176,31 @@ st.markdown(
         padding:0 !important; margin:0 !important; opacity:0; cursor:pointer;
     }
     .st-key-brand_header [data-testid="stColumn"]:first-child:has(.st-key-header_brand_link):hover .brand-name {
-        color:var(--jeju-orange-deep) !important;
+        color:#fff !important;
     }
     .st-key-header_bookmarks .stButton > button {
         min-height:4rem;
-        padding: 0 .45rem !important;
-        border: 0 !important;
-        border-radius: 0 !important;
-        background: transparent !important;
-        box-shadow: none !important;
+        padding:0 .45rem !important;
+        border:0 !important;
+        border-radius:0 !important;
+        background:transparent !important;
+        box-shadow:none !important;
         color: var(--jeju-brown) !important;
         font-family:'Pretendard',sans-serif !important;
         font-size:1.05rem !important;
         font-weight:750 !important;
+        white-space:nowrap !important; word-break:keep-all !important;
     }
     .st-key-header_bookmarks .stButton > button p {
         font-family:'Pretendard',sans-serif !important;
         font-size:1.05rem !important; font-weight:750 !important; line-height:1.2 !important;
+        white-space:nowrap !important; word-break:keep-all !important;
     }
     .st-key-header_bookmarks .stButton > button:hover,
     .st-key-header_bookmarks .stButton > button:focus {
         color: var(--jeju-orange-deep) !important;
-        background: transparent !important;
+        background:transparent !important;
+        border-color:transparent !important;
     }
     .home-hero {
         position: relative; overflow: hidden; padding: 3.2rem 3.4rem; border-radius: 30px;
@@ -239,12 +248,13 @@ st.markdown(
     .st-key-welcome_start_card [data-testid="stCaptionContainer"] {
         width:100%; text-align:center; margin-top:.15rem;
     }
-    .welcome-visual {position:relative; min-height:490px; overflow:hidden; border-radius:22px; background:linear-gradient(155deg,#ddf4f8 0 40%,#fff1c7 40% 65%,#ddf5ec 65%);}
-    .welcome-mountain {position:absolute;width:370px;height:190px;left:12%;top:100px;background:#80b990;clip-path:polygon(50% 0,100% 100%,0 100%);opacity:.92;}
-    .welcome-sea {position:absolute;left:0;right:0;bottom:0;height:42%;background:linear-gradient(#79cfe3,#aee7ef);}
-    .welcome-family {position:absolute;z-index:2;right:9%;bottom:58px;font-size:9rem;filter:drop-shadow(0 12px 8px #49382f18);}
-    .welcome-fruit {position:absolute;z-index:3;left:10%;bottom:32px;font-size:3.8rem;}
-    .welcome-flower {position:absolute;z-index:3;right:4%;bottom:26px;font-size:4.5rem;}
+    .st-key-welcome_visual_image {padding:0 !important; overflow:hidden; border-radius:24px;}
+    .st-key-welcome_visual_image [data-testid="stImage"] {margin:0 !important;}
+    .st-key-welcome_visual_image [data-testid="stImage"] img {
+        display:block; width:100% !important; height:auto !important;
+        aspect-ratio:1372 / 1146 !important; object-fit:cover !important; object-position:center;
+        border-radius:24px !important; box-shadow:0 12px 30px rgba(73,56,47,.12) !important;
+    }
     .page-title {font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; letter-spacing: -.045em; margin: .25rem 0 .3rem; color: var(--text-color);}
     .search-page-title {
         font-family:'Pretendard',sans-serif !important; font-weight:850 !important;
@@ -252,7 +262,6 @@ st.markdown(
     }
     .favorites-intro {display:flex; align-items:flex-end; justify-content:space-between; gap:2rem; padding:2rem .5rem 1.3rem;}
     .favorites-intro p {margin:.2rem 0 0; color:var(--jeju-muted);}
-    .favorites-art {font-size:2.8rem; letter-spacing:.35rem; white-space:nowrap;}
     .favorites-title {font-family:'Pretendard',sans-serif !important; font-weight:850 !important;}
     .result-heading {display: flex; align-items: center; gap: .7rem; margin: 1.35rem 0 .7rem; font-size: 1.55rem; font-weight: 760;}
     .search-result-heading, .favorites-result-heading {font-weight:850 !important;}
@@ -438,6 +447,21 @@ st.markdown(
         .home-hero::after {right: 5%; bottom: 5%; font-size: 2.5rem;}
         .brand p {display: none;}
         .brand-name {font-size:2rem;}
+        .brand-mark {width:2.8rem; height:2.8rem;}
+        .st-key-brand_header {padding-left:.75rem !important; padding-right:.75rem !important;}
+        .st-key-brand_header [data-testid="stHorizontalBlock"] {
+            flex-wrap:nowrap !important; gap:.65rem !important;
+        }
+        .st-key-brand_header [data-testid="stColumn"]:first-child {
+            flex:1 1 auto !important; width:auto !important; min-width:0 !important;
+        }
+        .st-key-brand_header [data-testid="stColumn"]:last-child {
+            flex:0 0 7.4rem !important; width:7.4rem !important; min-width:7.4rem !important;
+        }
+        .st-key-header_bookmarks .stButton > button,
+        .st-key-header_bookmarks .stButton > button p {
+            font-size:.95rem !important;
+        }
         div[class*="st-key-place_name_"] button,
         div[class*="st-key-favorite_name_"] button,
         div[class*="st-key-place_name_"] button p,
@@ -448,6 +472,9 @@ st.markdown(
         .detail-core-row {grid-template-columns:1.7rem 5.2rem minmax(0,1fr);}
         .st-key-detail_points, .st-key-detail_visit, .st-key-detail_map {
             height:auto; min-height:auto; overflow-y:visible;
+        }
+        .st-key-detail_points, .st-key-detail_visit {
+            padding-bottom:1.75rem !important;
         }
     }
     </style>
@@ -629,6 +656,7 @@ def initialize_state() -> None:
         "welcome_password": "",
         "welcome_started": False,
         "bookmark_authenticated_nickname": None,
+        "bookmark_delete_pending": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -847,16 +875,12 @@ def render_home(places: pd.DataFrame) -> None:
                             st.rerun()
                 st.caption("♥ 가입 없이 바로 시작할 수 있어요")
         with visual_col:
-            st.markdown(
-                """
-                <div class="welcome-visual" aria-label="제주에서 나들이하는 가족">
-                    <div class="welcome-mountain"></div><div class="welcome-sea"></div>
-                    <div class="welcome-family">👩‍👧</div><div class="welcome-fruit">🍊</div>
-                    <div class="welcome-flower">🌺</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            with st.container(key="welcome_visual_image"):
+                st.image(
+                    WELCOME_IMAGE_PATH,
+                    caption=None,
+                    width="stretch",
+                )
 
 
 def filter_places(places: pd.DataFrame) -> pd.DataFrame:
@@ -1466,9 +1490,8 @@ def render_bookmarks(places: pd.DataFrame) -> None:
     st.markdown(
         """
         <div class="favorites-intro">
-            <div><div class="page-title favorites-title">마음에 담아둔 제주 💛</div>
+            <div><div class="page-title favorites-title">마음에 담아둔 제주</div>
             <p>아이와 함께 가고 싶은 장소를 한곳에서 편하게 확인하세요.</p></div>
-            <div class="favorites-art">🍊　🌊　🌿</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1538,6 +1561,8 @@ def render_bookmarks(places: pd.DataFrame) -> None:
                     max_chars=500,
                     placeholder="아이와 함께할 나들이 메모를 남겨보세요",
                 )
+                bookmark_id = str(place["bookmark_id"])
+                delete_is_pending = st.session_state.bookmark_delete_pending == bookmark_id
                 memo_action, delete_action = st.columns([1, .7])
                 with memo_action:
                     if st.button(
@@ -1555,11 +1580,36 @@ def render_bookmarks(places: pd.DataFrame) -> None:
                             if write_bookmarks(updated):
                                 st.toast("메모를 저장했습니다.", icon="💾")
                 with delete_action:
-                    if st.button(
-                        "삭제", key=f"bookmark_delete_{place['bookmark_id']}", use_container_width=True
+                    if not delete_is_pending and st.button(
+                        "삭제", key=f"bookmark_delete_{bookmark_id}", use_container_width=True
                     ):
-                        updated = bookmarks[bookmarks["bookmark_id"] != place["bookmark_id"]]
-                        if write_bookmarks(updated):
+                        st.session_state.bookmark_delete_pending = bookmark_id
+                        st.rerun()
+
+                if delete_is_pending:
+                    st.warning("삭제하시겠습니까?")
+                    confirm_delete, cancel_delete = st.columns(2)
+                    with confirm_delete:
+                        if st.button(
+                            "네, 삭제할게요",
+                            key=f"bookmark_delete_confirm_{bookmark_id}",
+                            type="primary",
+                            use_container_width=True,
+                        ):
+                            updated = load_bookmarks()
+                            updated = updated[
+                                ~updated["bookmark_id"].astype(str).eq(bookmark_id)
+                            ]
+                            if write_bookmarks(updated):
+                                st.session_state.bookmark_delete_pending = None
+                                st.rerun()
+                    with cancel_delete:
+                        if st.button(
+                            "취소",
+                            key=f"bookmark_delete_cancel_{bookmark_id}",
+                            use_container_width=True,
+                        ):
+                            st.session_state.bookmark_delete_pending = None
                             st.rerun()
 
 
