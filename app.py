@@ -43,12 +43,7 @@ FEATURE_FILTERS = {
     "기저귀 교환대 있음": ("diaper_changing_table", True),
     "도민 할인 있음": ("resident_discount", True),
 }
-PARKING_FILTERS = {
-    "무료 주차 가능": ("무료", "무료/유료 주차"),
-    "유료 주차 가능": ("유료", "무료/유료 주차"),
-    "무료·유료 모두 운영": ("무료/유료 주차",),
-    "주차 불가": ("주차 불가",),
-}
+PARKING_FEATURE_LABEL = "주차 가능"
 BOOL_COLUMNS = list(dict.fromkeys(column for column, _ in FEATURE_FILTERS.values()))
 
 
@@ -111,7 +106,7 @@ st.markdown(
     [data-testid="stAppViewBlockContainer"],
     .block-container {
         max-width: 1320px;
-        padding-top: 5rem;
+        padding-top: 3.5rem;
         padding-bottom: 4rem;
     }
     [data-testid="stSidebar"] {
@@ -131,7 +126,7 @@ st.markdown(
         display: flex; align-items: center; gap: .75rem; min-height: 3.4rem;
     }
     .brand-mark {
-        position:relative; display:block; flex:0 0 auto; width:2.7rem; height:2.7rem;
+        position:relative; display:block; flex:0 0 auto; width:3.4rem; height:3.4rem;
         border-radius:48% 52% 50% 50%;
         background:
             radial-gradient(circle at 32% 34%, #fff 0 2px, transparent 3px),
@@ -147,17 +142,17 @@ st.markdown(
         content:"≈"; position:absolute; right:-.72rem; bottom:-.58rem;
         color:var(--jeju-sky); font-family:Arial,sans-serif; font-size:1.45rem; font-weight:900;
     }
-    .brand-name {margin:0; font-size:2.1rem; font-weight:400; letter-spacing:-.035em; line-height:1; white-space:nowrap;}
+    .brand-name {margin:0; font-size:clamp(2rem,4vw,3rem); font-weight:400; letter-spacing:-.035em; line-height:1; white-space:nowrap;}
     .st-key-brand_header {
         margin-bottom:1rem; padding:1.35rem 1.55rem !important; border:0 !important;
-        border-radius:22px; background:#fffdf8 !important;
-        box-shadow:0 12px 30px rgba(73,56,47,.13) !important;
+        border-radius:0; background:transparent !important;
+        box-shadow:none !important;
     }
     .st-key-brand_header [data-testid="stVerticalBlockBorderWrapper"] {
         padding: 1.15rem 1.55rem !important;
-        background:#fffdf8 !important;
+        background:transparent !important;
         border: 0 !important;
-        box-shadow: 0 12px 30px rgba(73, 56, 47, .13) !important;
+        box-shadow:none !important;
     }
     .st-key-brand_header [data-testid="stHorizontalBlock"] {align-items:center !important; min-height:4rem;}
     .st-key-brand_header [data-testid="stColumn"] {display:flex !important; align-items:center !important; min-height:4rem;}
@@ -168,7 +163,7 @@ st.markdown(
     .st-key-brand_header [data-testid="stColumn"]:first-child {position:relative;}
     .st-key-header_brand_link {
         position:absolute !important; left:0 !important; top:0 !important;
-        width:16rem !important; height:4rem !important; z-index:5; min-height:4rem;
+        width:20rem !important; max-width:100%; height:4rem !important; z-index:5; min-height:4rem;
     }
     .st-key-header_brand_link .stButton, .st-key-header_brand_link button {
         width:100% !important; height:100% !important; min-height:4rem !important;
@@ -260,7 +255,7 @@ st.markdown(
     .favorites-art {font-size:2.8rem; letter-spacing:.35rem; white-space:nowrap;}
     .favorites-title {font-family:'Pretendard',sans-serif !important; font-weight:850 !important;}
     .result-heading {display: flex; align-items: center; gap: .7rem; margin: 1.35rem 0 .7rem; font-size: 1.55rem; font-weight: 760;}
-    .search-result-heading {font-weight:850 !important;}
+    .search-result-heading, .favorites-result-heading {font-weight:850 !important;}
     .result-heading b {font-size:.85rem; color:var(--jeju-brown); background:var(--jeju-yellow-soft); border-radius:999px; padding:.35rem .65rem;}
     .region-title {font-size: 1.55rem; font-weight: 780; letter-spacing: -.035em; margin-bottom: .15rem;}
     .section-title {font-size: 1.45rem; font-weight: 760; color: var(--text-color); margin: .8rem 0 .3rem;}
@@ -366,7 +361,8 @@ st.markdown(
         font-size:.72rem; font-weight:900;
     }
     .st-key-detail_points, .st-key-detail_visit, .st-key-detail_map {
-        min-height:442px; padding:1rem !important; border-radius:20px;
+        height:360px; min-height:360px; padding:1rem !important; border-radius:20px;
+        box-sizing:border-box; overflow-y:auto;
     }
     div[data-testid="stVerticalBlock"].st-key-detail_points {background:#fff !important; border:1px solid var(--jeju-mint) !important;}
     div[data-testid="stVerticalBlock"].st-key-detail_visit {background:#fff !important; border:1px solid var(--jeju-yellow) !important;}
@@ -376,8 +372,12 @@ st.markdown(
         line-height:1.35 !important; letter-spacing:-.02em !important; font-weight:850 !important;
     }
     .st-key-detail_map [data-testid="stDeckGlJsonChart"] {
-        width:100% !important; height:auto !important; aspect-ratio:1 / 1 !important;
+        width:100% !important; max-width:280px !important; height:auto !important;
+        aspect-ratio:4 / 3 !important; margin:0 auto !important;
         overflow:hidden; border-radius:14px;
+    }
+    .st-key-detail_map [data-testid="stElementContainer"]:has([data-testid="stDeckGlJsonChart"]) {
+        height:210px !important; min-height:210px !important; overflow:hidden;
     }
     .st-key-detail_map [data-testid="stDeckGlJsonChart"] > div,
     .st-key-detail_map [data-testid="stDeckGlJsonChart"] canvas {
@@ -433,11 +433,11 @@ st.markdown(
     div[role="radiogroup"] {background:transparent !important; border:0; border-radius:16px; padding:.35rem .7rem;}
     @media (max-width: 768px) {
         [data-testid="stAppViewBlockContainer"],
-        .block-container {padding-top: 4.5rem;}
+        .block-container {padding-top:3.5rem;}
         .home-hero {padding: 2rem 1.35rem 7rem;}
         .home-hero::after {right: 5%; bottom: 5%; font-size: 2.5rem;}
         .brand p {display: none;}
-        .brand-name {font-size:1.65rem;}
+        .brand-name {font-size:2rem;}
         div[class*="st-key-place_name_"] button,
         div[class*="st-key-favorite_name_"] button,
         div[class*="st-key-place_name_"] button p,
@@ -446,7 +446,9 @@ st.markdown(
         .detail-summary-card {padding:1.25rem;}
         .detail-title-line {align-items:flex-start;}
         .detail-core-row {grid-template-columns:1.7rem 5.2rem minmax(0,1fr);}
-        .st-key-detail_points, .st-key-detail_visit, .st-key-detail_map {min-height:auto;}
+        .st-key-detail_points, .st-key-detail_visit, .st-key-detail_map {
+            height:auto; min-height:auto; overflow-y:visible;
+        }
     }
     </style>
     """,
@@ -608,11 +610,10 @@ def initialize_state() -> None:
     defaults = {
         "page": "home",
         "selected_place_id": None,
-        "selected_region": "전체",
+        "selected_region": [],
         "search_query": "",
         "category_filter": [],
         "space_filter": [],
-        "parking_filter": [],
         "feature_filter": [],
         "sort_order": "기본순",
         "view_mode": "갤러리 보기",
@@ -632,6 +633,11 @@ def initialize_state() -> None:
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+    if isinstance(st.session_state.selected_region, str):
+        st.session_state.selected_region = [] if st.session_state.selected_region == "전체" else [st.session_state.selected_region]
+    if isinstance(st.session_state.get("_selected_region_widget"), str):
+        previous_region = st.session_state._selected_region_widget
+        st.session_state._selected_region_widget = [] if previous_region == "전체" else [previous_region]
     # Streamlit normally removes widget keys when their page is not rendered.
     # Reassigning them keeps the list controls stable while the detail page is open.
     for key in (
@@ -639,7 +645,6 @@ def initialize_state() -> None:
         "search_query",
         "category_filter",
         "space_filter",
-        "parking_filter",
         "feature_filter",
         "sort_order",
         "view_mode",
@@ -655,17 +660,16 @@ def go_to(page: str, place_id: str | None = None) -> None:
 
 
 def select_region(region: str) -> None:
-    st.session_state.selected_region = region
+    st.session_state.selected_region = [] if region == "전체" else [region]
     st.session_state.page = "list"
 
 
 def reset_filters() -> None:
     reset_values = {
-        "selected_region": "전체",
+        "selected_region": [],
         "search_query": "",
         "category_filter": [],
         "space_filter": [],
-        "parking_filter": [],
         "feature_filter": [],
         "sort_order": "기본순",
     }
@@ -726,10 +730,11 @@ def hero() -> None:
 
 
 def display_tags(place: pd.Series, include_region: bool = True) -> str:
-    values = [clean_text(place.get("category"), "")]
+    values = []
     if include_region:
         values.append(clean_text(place.get("region_group"), ""))
     values.append(clean_text(place.get("space_type"), ""))
+    values.append(clean_text(place.get("category"), ""))
     return "".join(f'<span class="tag">{value}</span>' for value in values if value)
 
 
@@ -837,7 +842,7 @@ def render_home(places: pd.DataFrame) -> None:
                             st.session_state.bookmark_lookup = normalized
                             st.session_state.bookmark_lookup_password = welcome_password
                             st.session_state.welcome_started = True
-                            st.session_state.selected_region = "전체"
+                            st.session_state.selected_region = []
                             go_to("list")
                             st.rerun()
                 st.caption("♥ 가입 없이 바로 시작할 수 있어요")
@@ -856,9 +861,9 @@ def render_home(places: pd.DataFrame) -> None:
 
 def filter_places(places: pd.DataFrame) -> pd.DataFrame:
     result = places.copy()
-    region = st.session_state.selected_region
-    if region != "전체":
-        result = result[result["region_group"] == region]
+    selected_regions = st.session_state.selected_region
+    if selected_regions:
+        result = result[result["region_group"].isin(selected_regions)]
 
     query = st.session_state.search_query.strip()
     if query:
@@ -872,18 +877,11 @@ def filter_places(places: pd.DataFrame) -> pd.DataFrame:
         if selected:
             result = result[result[column].isin(selected)]
 
-    # Parking buttons describe capabilities. Each selected button is combined with OR.
-    selected_parking = st.session_state.parking_filter
-    if selected_parking:
-        accepted_parking_values = {
-            raw_value
-            for label in selected_parking
-            for raw_value in PARKING_FILTERS.get(label, (label,))
-        }
-        result = result[result["parking"].isin(accepted_parking_values)]
-
     # Every selected convenience/use condition must match (AND).
     for label in st.session_state.feature_filter:
+        if label == PARKING_FEATURE_LABEL:
+            result = result[result["parking"].isin(["무료", "유료", "무료/유료 주차"])]
+            continue
         if label not in FEATURE_FILTERS:
             continue
         column, required_value = FEATURE_FILTERS[label]
@@ -980,11 +978,9 @@ def render_location_control() -> None:
 
 def active_filter_labels() -> list[str]:
     labels = []
-    if st.session_state.selected_region != "전체":
-        labels.append(st.session_state.selected_region)
-    labels.extend(st.session_state.category_filter)
+    labels.extend(st.session_state.selected_region)
     labels.extend(st.session_state.space_filter)
-    labels.extend(st.session_state.parking_filter)
+    labels.extend(st.session_state.category_filter)
     labels.extend(st.session_state.feature_filter)
     if st.session_state.search_query.strip():
         labels.append(f'검색: {st.session_state.search_query.strip()}')
@@ -1101,14 +1097,16 @@ def render_list(places: pd.DataFrame) -> None:
         st.button("검색", type="primary", use_container_width=True)
 
     with st.container(border=True, key="search_filter_panel"):
-        region_col, space_col = st.columns([1, 2])
+        region_col, space_col = st.columns(2)
         with region_col:
-            st.markdown("**지역**")
-            st.session_state.selected_region = st.selectbox(
+            st.markdown("**지역** · 여러 개 선택 가능")
+            st.session_state.selected_region = st.pills(
                 "지역",
-                REGIONS,
+                REGIONS[1:],
+                selection_mode="multi",
                 key=prepare_filter_widget("selected_region"),
                 label_visibility="collapsed",
+                format_func=lambda value: f"📍 {value}",
             )
         with space_col:
             st.markdown("**공간** · 여러 개 선택 가능")
@@ -1126,32 +1124,22 @@ def render_list(places: pd.DataFrame) -> None:
                 format_func=lambda value: f"{'🏠' if value == '실내' else '🌿'} {value}",
             )
 
-        st.markdown("**시설유형** · 여러 개 선택 가능")
-        category_icons = ["🎨", "🐬", "🌳", "🧸", "🏛️", "🎡"]
-        category_options = sorted(places["category"].dropna().astype(str).unique())
-        category_icon_map = {
-            value: category_icons[index % len(category_icons)]
-            for index, value in enumerate(category_options)
-        }
-        st.session_state.category_filter = st.pills(
-            "시설유형",
-            category_options,
-            selection_mode="multi",
-            key=prepare_filter_widget("category_filter"),
-            label_visibility="collapsed",
-            format_func=lambda value: f"{category_icon_map[value]} {value}",
-        )
-
-        parking_col, feature_col = st.columns([1, 2])
-        with parking_col:
-            st.markdown("**주차** · 여러 개 선택 가능")
-            st.session_state.parking_filter = st.pills(
-                "주차 유형 (OR)",
-                list(PARKING_FILTERS),
+        category_col, feature_col = st.columns(2)
+        with category_col:
+            st.markdown("**시설유형** · 여러 개 선택 가능")
+            category_icons = ["🎨", "🐬", "🌳", "🧸", "🏛️", "🎡"]
+            category_options = sorted(places["category"].dropna().astype(str).unique())
+            category_icon_map = {
+                value: category_icons[index % len(category_icons)]
+                for index, value in enumerate(category_options)
+            }
+            st.session_state.category_filter = st.pills(
+                "시설유형",
+                category_options,
                 selection_mode="multi",
-                key=prepare_filter_widget("parking_filter"),
+                key=prepare_filter_widget("category_filter"),
                 label_visibility="collapsed",
-                format_func=lambda value: f"🚗 {value}",
+                format_func=lambda value: f"{category_icon_map[value]} {value}",
             )
         with feature_col:
             st.markdown("**편의시설 · 이용조건** · 선택한 조건 모두 충족 (AND)")
@@ -1159,17 +1147,18 @@ def render_list(places: pd.DataFrame) -> None:
                 "입장료 없음": "🆓", "연령제한 없음": "👨‍👩‍👧",
                 "수유실 있음": "🍼", "유모차 대여 가능": "🛒",
                 "기저귀 교환대 있음": "👶", "도민 할인 있음": "🍊",
+                PARKING_FEATURE_LABEL: "🚗",
             }
             st.session_state.feature_filter = st.pills(
                 "편의·이용 조건 (모두 충족)",
-                list(FEATURE_FILTERS),
+                [*FEATURE_FILTERS, PARKING_FEATURE_LABEL],
                 selection_mode="multi",
                 key=prepare_filter_widget("feature_filter"),
                 label_visibility="collapsed",
                 format_func=lambda value: f"{feature_icons[value]} {value}",
                 help="선택한 모든 조건을 충족하는 장소만 표시합니다.",
             )
-        location_col, _ = st.columns([1, 2])
+        location_col, _ = st.columns(2)
         with location_col:
             render_location_control()
         st.button("필터 초기화 ↻", key="main_filter_reset", on_click=reset_filters)
@@ -1457,11 +1446,19 @@ def render_detail(places: pd.DataFrame) -> None:
                     pd.DataFrame({"lat": [float(lat)], "lon": [float(lon)]}),
                     zoom=12,
                     width="stretch",
-                    height=300,
+                    height=210,
                 )
             else:
                 st.info("위치 정보가 등록되지 않았습니다.")
-            st.markdown(f"🚙 {escape(clean_text(place.get('parking'), '주차 정보 없음'))}")
+            parking_text = clean_text(place.get("parking"), "주차 정보 없음")
+            parking_icon = "❌" if parking_text == "주차 불가" else "🚙"
+            parking_label = {
+                "무료": "무료 주차 가능",
+                "유료": "유료 주차 가능",
+                "무료/유료": "무료/유료 주차 가능",
+                "무료/유료 주차": "무료/유료 주차 가능",
+            }.get(parking_text, parking_text)
+            st.markdown(f"{parking_icon} {escape(parking_label)}")
 
 
 
@@ -1492,7 +1489,7 @@ def render_bookmarks(places: pd.DataFrame) -> None:
     safe_download_columns = ["bookmark_id", "nickname", "place_id", "created_at", "memo"]
     joined = mine.merge(places, on="place_id", how="left", suffixes=("_bookmark", ""))
     st.markdown(
-        f'<div class="result-heading"><span>{normalized}님의 즐겨찾기</span><b>{len(joined)}곳</b></div>',
+        f'<div class="result-heading favorites-result-heading"><span>{normalized}님의 즐겨찾기</span><b>{len(joined)}곳</b></div>',
         unsafe_allow_html=True,
     )
     st.download_button(
@@ -1556,7 +1553,7 @@ def render_bookmarks(places: pd.DataFrame) -> None:
                         else:
                             updated.loc[target, "memo"] = memo_value.strip()
                             if write_bookmarks(updated):
-                                st.success("메모를 저장했습니다.")
+                                st.toast("메모를 저장했습니다.", icon="💾")
                 with delete_action:
                     if st.button(
                         "삭제", key=f"bookmark_delete_{place['bookmark_id']}", use_container_width=True
