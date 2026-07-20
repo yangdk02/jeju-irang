@@ -382,38 +382,46 @@ function formBuilderAddItems_(form) {
   items.space_type = form
     .addMultipleChoiceItem()
     .setTitle('실내/실외')
-    .setChoiceValues(['실내', '실외', '실내/실외'])
-    .setRequired(true);
+    .setHelpText('모르면 선택하지 않거나 ‘잘 모르겠음’을 선택해 주세요.')
+    .setChoiceValues(['실내', '실외', '실내/실외', '잘 모르겠음'])
+    .setRequired(false);
 
   items.category = form
     .addMultipleChoiceItem()
     .setTitle('시설유형')
-    .setChoiceValues(['관광지', '영화/연극/공연', '전시/기념관'])
-    .setRequired(true);
+    .setHelpText('알맞은 유형이 없으면 ‘그 외’를 선택해 주세요. 관리자가 검수하여 분류합니다.')
+    .setChoiceValues([
+      '관광지',
+      '영화/연극/공연',
+      '전시/기념관',
+      '그 외',
+      '잘 모르겠음',
+    ])
+    .setRequired(false);
 
   items.has_admission_fee = form
     .addMultipleChoiceItem()
     .setTitle('입장료 여부')
-    .setChoiceValues(['있음', '없음'])
-    .setRequired(true);
+    .setChoiceValues(['있음', '없음', '잘 모르겠음'])
+    .setRequired(false);
 
   items.has_age_limit = form
     .addMultipleChoiceItem()
     .setTitle('연령제한 여부')
-    .setChoiceValues(['있음', '없음'])
-    .setRequired(true);
+    .setChoiceValues(['있음', '없음', '잘 모르겠음'])
+    .setRequired(false);
 
   items.nursing_room = form
     .addMultipleChoiceItem()
     .setTitle('수유실 여부')
-    .setChoiceValues(['있음', '없음'])
-    .setRequired(true);
+    .setChoiceValues(['있음', '없음', '잘 모르겠음'])
+    .setRequired(false);
 
   items.stroller_rental = form
     .addMultipleChoiceItem()
     .setTitle('유모차 대여 여부')
-    .setChoiceValues(['가능', '불가'])
-    .setRequired(true);
+    .setChoiceValues(['가능', '불가', '잘 모르겠음'])
+    .setRequired(false);
 
   items.parking = form
     .addMultipleChoiceItem()
@@ -425,7 +433,7 @@ function formBuilderAddItems_(form) {
       '주차 불가',
       '잘 모르겠음',
     ])
-    .setRequired(true);
+    .setRequired(false);
 
   const optionalSection = form
     .addPageBreakItem()
@@ -1053,6 +1061,79 @@ function applyVworldFormSettings() {
       '주소나 동네처럼 장소를 찾는 데 도움이 되는 내용을 입력해 주세요. 예: 제주시 애월읍'
     );
   Logger.log('Google Form의 위치 단서 안내를 VWorld 기준으로 변경했습니다.');
+  Logger.log('Form 편집 URL: %s', form.getEditUrl());
+}
+
+/**
+ * 이미 생성된 Form의 기본 정보 질문을 선택 항목으로 완화합니다.
+ *
+ * 사용자가 모르는 값은 응답하지 않거나 ‘잘 모르겠음’을 선택할 수 있습니다.
+ * ‘잘 모르겠음’과 시설유형의 ‘그 외’는 review_queue의 proposed_* 값에서
+ * 빈칸으로 남고, 관리자가 승인 전에 최종값을 확인합니다.
+ * 여러 번 실행해도 안전합니다.
+ */
+function applyOptionalPlaceInformationSettings() {
+  const properties = PropertiesService.getScriptProperties();
+  const formId = properties.getProperty(
+    FORM_BUILDER_CONFIG.PROPERTY_FORM_ID
+  );
+  if (!formId) {
+    throw new Error('먼저 createJejuIrangForm을 실행해 주세요.');
+  }
+
+  const form = FormApp.openById(formId);
+  const items = formBuilderCollectQuestionItems_(form);
+  const settings = {
+    space_type: {
+      choices: ['실내', '실외', '실내/실외', '잘 모르겠음'],
+      help: '모르면 선택하지 않거나 ‘잘 모르겠음’을 선택해 주세요.',
+    },
+    category: {
+      choices: [
+        '관광지',
+        '영화/연극/공연',
+        '전시/기념관',
+        '그 외',
+        '잘 모르겠음',
+      ],
+      help: '알맞은 유형이 없으면 ‘그 외’를 선택해 주세요. 관리자가 검수하여 분류합니다.',
+    },
+    has_admission_fee: {
+      choices: ['있음', '없음', '잘 모르겠음'],
+    },
+    has_age_limit: {
+      choices: ['있음', '없음', '잘 모르겠음'],
+    },
+    nursing_room: {
+      choices: ['있음', '없음', '잘 모르겠음'],
+    },
+    stroller_rental: {
+      choices: ['가능', '불가', '잘 모르겠음'],
+    },
+    parking: {
+      choices: [
+        '무료 주차',
+        '유료 주차',
+        '무료·유료 주차 모두 있음',
+        '주차 불가',
+        '잘 모르겠음',
+      ],
+    },
+  };
+
+  Object.keys(settings).forEach(function (key) {
+    if (!items[key]) {
+      throw new Error('Form 질문을 찾지 못했습니다: ' + key);
+    }
+    const item = items[key].asMultipleChoiceItem();
+    item.setChoiceValues(settings[key].choices).setRequired(false);
+    if (settings[key].help) {
+      item.setHelpText(settings[key].help);
+    }
+  });
+
+  Logger.log('기본 정보 질문을 선택 항목으로 변경했습니다.');
+  Logger.log('모르는 값은 review_queue에 빈칸으로 기록됩니다.');
   Logger.log('Form 편집 URL: %s', form.getEditUrl());
 }
 

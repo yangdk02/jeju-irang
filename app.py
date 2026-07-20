@@ -18,6 +18,11 @@ import streamlit as st
 from PIL import Image
 from streamlit_geolocation import streamlit_geolocation
 
+try:
+    from streamlit_gsheets import GSheetsConnection
+except ImportError:  # 로컬에서 Google Sheet를 아직 설정하지 않은 경우
+    GSheetsConnection = None
+
 from form_links import build_update_form_url
 
 
@@ -29,6 +34,8 @@ FAVICON_PATH = ASSETS_DIR / "favicon.png"
 PLACES_PATH = DATA_DIR / "jeju-irang.csv"
 BOOKMARKS_PATH = DATA_DIR / "bookmarks.csv"
 BOOKMARK_BACKUP_DIR = DATA_DIR / "backups"
+BOOKMARK_SHEET_CONNECTION_NAME = "bookmarks"
+BOOKMARK_SHEET_DEFAULT_WORKSHEET = "bookmarks"
 BOOKMARK_COLUMNS = [
     "bookmark_id",
     "nickname",
@@ -37,6 +44,7 @@ BOOKMARK_COLUMNS = [
     "password_salt",
     "password_hash",
     "memo",
+    "custom_category",
 ]
 PASSWORD_ITERATIONS = 200_000
 
@@ -287,6 +295,17 @@ st.markdown(
     .favorites-intro {display:flex; align-items:flex-end; justify-content:space-between; gap:2rem; padding:2rem .5rem 1.3rem;}
     .favorites-intro p {margin:.2rem 0 0; color:var(--jeju-muted);}
     .favorites-title {font-family:'Pretendard',sans-serif !important; font-weight:850 !important;}
+    .st-key-favorites_controls {
+        margin:.65rem 0 1rem; padding:1rem 1.15rem !important; border-radius:20px;
+        background:#fff !important; box-shadow:0 8px 22px rgba(73,56,47,.08) !important;
+    }
+    .st-key-favorites_controls [data-testid="stButtonGroup"] button {
+        border:0 !important; border-radius:999px !important; background:var(--jeju-pink-soft) !important;
+        color:var(--jeju-brown) !important; font-weight:750 !important;
+    }
+    .st-key-favorites_controls [data-testid="stButtonGroup"] button[aria-pressed="true"] {
+        background:var(--jeju-pink) !important; color:var(--jeju-brown) !important;
+    }
     .result-heading {display: flex; align-items: center; gap: .7rem; margin: 1.35rem 0 .7rem; font-size: 1.55rem; font-weight: 760;}
     .search-result-heading, .favorites-result-heading {font-weight:850 !important;}
     .result-heading b {font-size:.85rem; color:var(--jeju-brown); background:var(--jeju-yellow-soft); border-radius:999px; padding:.35rem .65rem;}
@@ -610,20 +629,107 @@ def empty_bookmarks() -> pd.DataFrame:
     return pd.DataFrame(columns=BOOKMARK_COLUMNS)
 
 
-def load_bookmarks() -> pd.DataFrame:
+def normalize_bookmarks(frame: pd.DataFrame) -> pd.DataFrame:
+    normalized = frame.copy()
+    normalized.columns = [str(column).strip() for column in normalized.columns]
+    normalized = normalized.dropna(how="all")
+    for column in BOOKMARK_COLUMNS:
+        if column not in normalized.columns:
+            normalized[column] = pd.NA
+    return normalized[BOOKMARK_COLUMNS].astype("string")
+
+
+def load_local_bookmarks() -> pd.DataFrame:
     if not BOOKMARKS_PATH.exists() or BOOKMARKS_PATH.stat().st_size == 0:
         return empty_bookmarks()
     try:
         frame = pd.read_csv(BOOKMARKS_PATH, dtype="string")
     except (pd.errors.EmptyDataError, UnicodeDecodeError):
         return empty_bookmarks()
-    for column in empty_bookmarks().columns:
-        if column not in frame.columns:
-            frame[column] = pd.NA
-    return frame[list(empty_bookmarks().columns)]
+    return normalize_bookmarks(frame)
+
+
+def bookmark_sheet_settings() -> tuple[bool, str, str]:
+    try:
+        connections = st.secrets.get("connections", {})
+    except (FileNotFoundError, KeyError, AttributeError):
+        return (
+            False,
+            BOOKMARK_SHEET_CONNECTION_NAME,
+            BOOKMARK_SHEET_DEFAULT_WORKSHEET,
+        )
+
+    # 전용 연결을 우선 사용하고, 기존 프로젝트의 [connections.gsheets]
+    # 서비스 계정 연결이 있으면 같은 Spreadsheet의 bookmarks 탭을 재사용합니다.
+    for connection_name in (BOOKMARK_SHEET_CONNECTION_NAME, "gsheets"):
+        settings = connections.get(connection_name, {})
+        spreadsheet = str(settings.get("spreadsheet", "")).strip()
+        connection_type = str(settings.get("type", "")).strip()
+        if spreadsheet and connection_type == "service_account":
+            worksheet = (
+                str(settings.get("worksheet", "")).strip()
+                if connection_name == BOOKMARK_SHEET_CONNECTION_NAME
+                else BOOKMARK_SHEET_DEFAULT_WORKSHEET
+            )
+            return (
+                True,
+                connection_name,
+                worksheet or BOOKMARK_SHEET_DEFAULT_WORKSHEET,
+            )
+    return (
+        False,
+        BOOKMARK_SHEET_CONNECTION_NAME,
+        BOOKMARK_SHEET_DEFAULT_WORKSHEET,
+    )
+
+
+def bookmark_sheet_connection(connection_name: str):
+    if GSheetsConnection is None:
+        raise RuntimeError(
+            "Google Sheet 연결 모듈이 없습니다. requirements.txt의 "
+            "st-gsheets-connection 설치를 확인해 주세요."
+        )
+    return st.connection(
+        connection_name,
+        type=GSheetsConnection,
+    )
+
+
+def load_bookmarks() -> pd.DataFrame:
+    use_google_sheet, connection_name, worksheet = bookmark_sheet_settings()
+    if not use_google_sheet:
+        return load_local_bookmarks()
+    try:
+        frame = bookmark_sheet_connection(connection_name).read(
+            worksheet=worksheet,
+            ttl=0,
+        )
+        return normalize_bookmarks(frame)
+    except Exception:
+        st.error(
+            "즐겨찾기 Google Sheet를 불러오지 못했습니다. "
+            "잠시 후 다시 시도하거나 관리자에게 알려 주세요."
+        )
+        st.stop()
 
 
 def write_bookmarks(frame: pd.DataFrame) -> bool:
+    normalized = normalize_bookmarks(frame).fillna("")
+    use_google_sheet, connection_name, worksheet = bookmark_sheet_settings()
+    if use_google_sheet:
+        try:
+            bookmark_sheet_connection(connection_name).update(
+                worksheet=worksheet,
+                data=normalized,
+            )
+            return True
+        except Exception:
+            st.error(
+                "즐겨찾기 Google Sheet에 저장하지 못했습니다. "
+                "입력 내용은 반영되지 않았으니 잠시 후 다시 시도해 주세요."
+            )
+            return False
+
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if BOOKMARKS_PATH.exists() and BOOKMARKS_PATH.stat().st_size > 0:
         BOOKMARK_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -635,7 +741,7 @@ def write_bookmarks(frame: pd.DataFrame) -> bool:
     handle, temp_name = tempfile.mkstemp(prefix="bookmarks_", suffix=".csv", dir=DATA_DIR)
     os.close(handle)
     try:
-        frame.to_csv(temp_name, index=False, encoding="utf-8-sig")
+        normalized.to_csv(temp_name, index=False, encoding="utf-8-sig")
         # Windows에서는 Streamlit의 파일 감시나 백신 검사 때문에 기존 CSV의
         # 이름 교체가 아주 잠깐 거부될 수 있으므로 먼저 자동 재시도합니다.
         for attempt in range(5):
@@ -736,6 +842,8 @@ def initialize_state() -> None:
         "welcome_started": False,
         "bookmark_authenticated_nickname": None,
         "bookmark_delete_pending": None,
+        "bookmark_view_mode": "갤러리 보기",
+        "bookmark_category_filter": "전체",
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -1099,12 +1207,16 @@ def open_selected_table_place() -> None:
         go_to("detail", place_ids[selected_rows[0]])
 
 
-def open_selected_map_place() -> None:
-    state = st.session_state.get("places_map")
+def open_selected_map_place(state_key: str = "places_map") -> None:
+    state = st.session_state.get(state_key)
     selection = state.get("selection", {}) if state else {}
     selected_objects = selection.get("objects", {}).get("places", [])
     if selected_objects:
         go_to("detail", str(selected_objects[0]["place_id"]))
+
+
+def open_selected_bookmark_map_place() -> None:
+    open_selected_map_place("bookmarks_map")
 
 
 def render_place_table(frame: pd.DataFrame) -> None:
@@ -1136,7 +1248,11 @@ def render_place_table(frame: pd.DataFrame) -> None:
     )
 
 
-def render_place_map(frame: pd.DataFrame) -> None:
+def render_place_map(
+    frame: pd.DataFrame,
+    chart_key: str = "places_map",
+    on_select=open_selected_map_place,
+) -> None:
     map_frame = frame.copy()
     map_frame["lat"] = pd.to_numeric(map_frame["latitude"], errors="coerce")
     map_frame["lon"] = pd.to_numeric(map_frame["longitude"], errors="coerce")
@@ -1175,8 +1291,8 @@ def render_place_map(frame: pd.DataFrame) -> None:
         st.pydeck_chart(
             deck,
             use_container_width=True,
-            key="places_map",
-            on_select=open_selected_map_place,
+            key=chart_key,
+            on_select=on_select,
             selection_mode="single-object",
         )
         missing_count = len(frame) - len(map_frame)
@@ -1405,6 +1521,7 @@ def toggle_current_bookmark(place_id: str) -> None:
         "password_salt": salt,
         "password_hash": digest,
         "memo": "",
+        "custom_category": "",
     }])
     if write_bookmarks(pd.concat([bookmarks, new_row], ignore_index=True)):
         st.session_state.bookmark_flash = ("success", "장소를 저장했어요.")
@@ -1638,6 +1755,43 @@ def render_detail(places: pd.DataFrame) -> None:
 
 
 
+def bookmark_category_text(value: object) -> str:
+    if pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
+def bookmark_category_options(bookmarks: pd.DataFrame) -> list[str]:
+    categories = sorted(
+        {
+            bookmark_category_text(value)
+            for value in bookmarks["custom_category"]
+            if bookmark_category_text(value)
+        },
+        key=str.casefold,
+    )
+    options = ["전체", *categories]
+    if bookmarks["custom_category"].map(bookmark_category_text).eq("").any():
+        options.append("미분류")
+    return options
+
+
+def filter_bookmarks_by_category(
+    bookmarks: pd.DataFrame, selected_category: str
+) -> pd.DataFrame:
+    if selected_category == "미분류":
+        return bookmarks[
+            bookmarks["custom_category"].map(bookmark_category_text).eq("")
+        ].copy()
+    if selected_category and selected_category != "전체":
+        return bookmarks[
+            bookmarks["custom_category"]
+            .map(bookmark_category_text)
+            .eq(selected_category)
+        ].copy()
+    return bookmarks.copy()
+
+
 def render_bookmarks(places: pd.DataFrame) -> None:
     st.markdown(
         """
@@ -1649,10 +1803,20 @@ def render_bookmarks(places: pd.DataFrame) -> None:
         unsafe_allow_html=True,
     )
     normalized = st.session_state.nickname.strip()
+    google_sheet_enabled, _, _ = bookmark_sheet_settings()
+    if not google_sheet_enabled:
+        st.warning(
+            "현재 즐겨찾기는 로컬 개발용 CSV에 저장됩니다. "
+            "배포 전 Google Sheet Secrets 설정을 완료해 주세요."
+        )
     if not normalized:
         st.info("시작 화면에서 닉네임과 비밀번호를 입력하면 즐겨찾기를 확인할 수 있어요.")
         st.button("시작 화면으로", type="primary", on_click=go_to, args=("home",))
         return
+
+    flash = st.session_state.pop("favorites_flash", None)
+    if flash:
+        st.toast(flash[1], icon=flash[0])
 
     bookmarks = load_bookmarks()
     mine = bookmarks[bookmarks["nickname"].fillna("").str.strip() == normalized].copy()
@@ -1661,8 +1825,41 @@ def render_bookmarks(places: pd.DataFrame) -> None:
         return
     mine["_created"] = pd.to_datetime(mine["created_at"], errors="coerce")
     mine = mine.sort_values("_created", ascending=False, na_position="last")
-    safe_download_columns = ["bookmark_id", "nickname", "place_id", "created_at", "memo"]
-    joined = mine.merge(places, on="place_id", how="left", suffixes=("_bookmark", ""))
+    category_options = bookmark_category_options(mine)
+    if st.session_state.bookmark_category_filter not in category_options:
+        st.session_state.bookmark_category_filter = "전체"
+
+    with st.container(key="favorites_controls"):
+        category_control, view_control = st.columns([2, 1], vertical_alignment="bottom")
+        with category_control:
+            st.markdown("**나만의 카테고리**")
+            selected_category = st.pills(
+                "나만의 카테고리",
+                category_options,
+                key="bookmark_category_filter",
+                label_visibility="collapsed",
+            )
+        with view_control:
+            st.session_state.bookmark_view_mode = st.radio(
+                "보기 형식",
+                ["갤러리 보기", "지도 보기"],
+                key="bookmark_view_mode_control",
+                horizontal=True,
+            )
+
+    selected_category = selected_category or "전체"
+    filtered_mine = filter_bookmarks_by_category(mine, selected_category)
+    safe_download_columns = [
+        "bookmark_id",
+        "nickname",
+        "place_id",
+        "created_at",
+        "custom_category",
+        "memo",
+    ]
+    joined = filtered_mine.merge(
+        places, on="place_id", how="left", suffixes=("_bookmark", "")
+    )
     st.markdown(
         f'<div class="result-heading favorites-result-heading"><span>{normalized}님의 즐겨찾기</span><b>{len(joined)}곳</b></div>',
         unsafe_allow_html=True,
@@ -1673,6 +1870,19 @@ def render_bookmarks(places: pd.DataFrame) -> None:
         file_name=f"{normalized}_bookmarks.csv",
         mime="text/csv",
     )
+
+    if joined.empty:
+        st.info("선택한 카테고리에 저장된 장소가 없어요.")
+        return
+
+    if st.session_state.bookmark_view_mode == "지도 보기":
+        render_place_map(
+            joined,
+            chart_key="bookmarks_map",
+            on_select=open_selected_bookmark_map_place,
+        )
+        st.caption("나만의 카테고리와 메모를 수정하려면 갤러리 보기로 전환해 주세요.")
+        return
 
     for start in range(0, len(joined), 3):
         columns = st.columns(3)
@@ -1706,6 +1916,13 @@ def render_bookmarks(places: pd.DataFrame) -> None:
                         """,
                         unsafe_allow_html=True,
                     )
+                custom_category = st.text_input(
+                    "나만의 카테고리",
+                    value=bookmark_category_text(place.get("custom_category")),
+                    key=f"bookmark_category_{place['bookmark_id']}",
+                    max_chars=30,
+                    placeholder="예: 비 오는 날 · 꼭 가볼 곳",
+                )
                 memo_value = st.text_area(
                     "나들이 메모",
                     value=clean_text(place.get("memo"), ""),
@@ -1718,19 +1935,31 @@ def render_bookmarks(places: pd.DataFrame) -> None:
                 memo_action, delete_action = st.columns([1, .7])
                 with memo_action:
                     if st.button(
-                        "메모 저장",
+                        "분류·메모 저장",
                         key=f"bookmark_memo_save_{place['bookmark_id']}",
                         use_container_width=True,
                     ):
+                        category_value = custom_category.strip()
+                        if category_value in {"전체", "미분류"}:
+                            st.error("‘전체’와 ‘미분류’는 카테고리 이름으로 사용할 수 없습니다.")
+                            continue
                         # Always update the complete source table by its unique ID.
                         updated = load_bookmarks()
-                        target = updated["bookmark_id"].astype(str).eq(str(place["bookmark_id"]))
+                        target = (
+                            updated["bookmark_id"].astype(str).eq(str(place["bookmark_id"]))
+                            & nickname_mask(updated, normalized)
+                        )
                         if target.sum() != 1:
                             st.error("수정할 북마크를 정확히 찾을 수 없습니다.")
                         else:
                             updated.loc[target, "memo"] = memo_value.strip()
+                            updated.loc[target, "custom_category"] = category_value
                             if write_bookmarks(updated):
-                                st.toast("메모를 저장했습니다.", icon="💾")
+                                st.session_state.favorites_flash = (
+                                    "💾",
+                                    "나만의 카테고리와 메모를 저장했습니다.",
+                                )
+                                st.rerun()
                 with delete_action:
                     if not delete_is_pending and st.button(
                         "삭제", key=f"bookmark_delete_{bookmark_id}", use_container_width=True
@@ -1750,7 +1979,10 @@ def render_bookmarks(places: pd.DataFrame) -> None:
                         ):
                             updated = load_bookmarks()
                             updated = updated[
-                                ~updated["bookmark_id"].astype(str).eq(bookmark_id)
+                                ~(
+                                    updated["bookmark_id"].astype(str).eq(bookmark_id)
+                                    & nickname_mask(updated, normalized)
+                                )
                             ]
                             if write_bookmarks(updated):
                                 st.session_state.bookmark_delete_pending = None

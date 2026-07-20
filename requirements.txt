@@ -1,3 +1,4 @@
 streamlit>=1.36,<2
 pandas>=2.0,<3
 streamlit-geolocation==0.0.10
+st-gsheets-connection==0.1.0
