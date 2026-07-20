@@ -36,6 +36,8 @@ BOOKMARKS_PATH = DATA_DIR / "bookmarks.csv"
 BOOKMARK_BACKUP_DIR = DATA_DIR / "backups"
 BOOKMARK_SHEET_CONNECTION_NAME = "bookmarks"
 BOOKMARK_SHEET_DEFAULT_WORKSHEET = "bookmarks"
+BOOKMARK_CATEGORY_UNCATEGORIZED = "미분류"
+BOOKMARK_CATEGORY_NEW = "＋ 새 카테고리 추가"
 BOOKMARK_COLUMNS = [
     "bookmark_id",
     "nickname",
@@ -360,6 +362,11 @@ st.markdown(
     }
     .place-card-copy p {margin:.25rem 0; color:var(--jeju-muted); font-size:.91rem;}
     .saved-at {color:color-mix(in srgb, var(--jeju-pink) 60%, var(--text-color)) !important; font-size:.82rem !important;}
+    div[data-testid="stVerticalBlock"][class*="st-key-detail_bookmark_category_picker"] {
+        margin-top:.7rem; padding:1rem 1.1rem !important; border-radius:18px;
+        background:var(--jeju-pink-soft); border:1px solid var(--jeju-pink);
+        box-shadow:0 8px 22px rgba(73,56,47,.08); gap:.55rem !important;
+    }
     .tag {
         display:inline-block; background:var(--jeju-mint-soft); color:var(--jeju-brown);
         border:0; border-radius:999px;
@@ -842,6 +849,7 @@ def initialize_state() -> None:
         "welcome_started": False,
         "bookmark_authenticated_nickname": None,
         "bookmark_delete_pending": None,
+        "bookmark_category_picker_place_id": None,
         "bookmark_view_mode": "갤러리 보기",
         "bookmark_category_filter": "전체",
     }
@@ -870,6 +878,8 @@ def initialize_state() -> None:
 
 
 def go_to(page: str, place_id: str | None = None) -> None:
+    if page != "detail" or place_id != st.session_state.get("selected_place_id"):
+        st.session_state.bookmark_category_picker_place_id = None
     st.session_state.page = page
     st.session_state.selected_place_id = place_id
 
@@ -1470,7 +1480,50 @@ def current_place_is_saved(place_id: str) -> bool:
     )
 
 
-def toggle_current_bookmark(place_id: str) -> None:
+def bookmark_category_text(value: object) -> str:
+    if pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
+def user_bookmark_categories(bookmarks: pd.DataFrame, nickname: str) -> list[str]:
+    mine = bookmarks[nickname_mask(bookmarks, nickname)]
+    return sorted(
+        {
+            bookmark_category_text(value)
+            for value in mine["custom_category"]
+            if bookmark_category_text(value)
+        },
+        key=str.casefold,
+    )
+
+
+def resolve_bookmark_category(
+    selected: str,
+    new_category: str = "",
+    existing_categories: list[str] | None = None,
+) -> tuple[str | None, str | None]:
+    if selected == BOOKMARK_CATEGORY_NEW:
+        category = new_category.strip()
+        if not category:
+            return None, "새 카테고리 이름을 입력해 주세요."
+    elif selected == BOOKMARK_CATEGORY_UNCATEGORIZED:
+        return "", None
+    else:
+        category = bookmark_category_text(selected)
+
+    if category.casefold() in {"전체".casefold(), BOOKMARK_CATEGORY_UNCATEGORIZED.casefold()}:
+        return None, "‘전체’와 ‘미분류’는 카테고리 이름으로 사용할 수 없습니다."
+    if len(category) > 30:
+        return None, "카테고리 이름은 30자 이내로 입력해 주세요."
+
+    for existing in existing_categories or []:
+        if existing.casefold() == category.casefold():
+            return existing, None
+    return category, None
+
+
+def toggle_current_bookmark(place_id: str, custom_category: str = "") -> None:
     nickname = st.session_state.nickname.strip()
     password = st.session_state.bookmark_save_password
     if not nickname or len(password) < 4:
@@ -1505,6 +1558,7 @@ def toggle_current_bookmark(place_id: str) -> None:
     bookmark_rows = same_nickname & bookmarks["place_id"].astype(str).eq(str(place_id))
     if bookmark_rows.any():
         if write_bookmarks(bookmarks.loc[~bookmark_rows].copy()):
+            st.session_state.bookmark_category_picker_place_id = None
             st.session_state.bookmark_flash = ("info", "저장을 취소했어요.")
         return
 
@@ -1521,10 +1575,16 @@ def toggle_current_bookmark(place_id: str) -> None:
         "password_salt": salt,
         "password_hash": digest,
         "memo": "",
-        "custom_category": "",
+        "custom_category": bookmark_category_text(custom_category),
     }])
     if write_bookmarks(pd.concat([bookmarks, new_row], ignore_index=True)):
-        st.session_state.bookmark_flash = ("success", "장소를 저장했어요.")
+        st.session_state.bookmark_category_picker_place_id = None
+        category_message = (
+            f"‘{custom_category}’ 카테고리에 저장했어요."
+            if bookmark_category_text(custom_category)
+            else "미분류로 장소를 저장했어요."
+        )
+        st.session_state.bookmark_flash = ("success", category_message)
 
 
 def detail_row(icon: str, label: str, value: object) -> str:
@@ -1672,21 +1732,88 @@ def render_detail(places: pd.DataFrame) -> None:
     st.html(
         f"""
         <style>
-        .st-key-detail_save_toggle button {{
+        .st-key-detail_save_remove button,
+        .st-key-detail_save_open button {{
             background:{save_button_background} !important;
             color:{save_button_color} !important;
         }}
         </style>
         """
     )
-    st.button(
-        "♥ 저장한 장소" if saved else "♡ 이 장소 저장하기",
-        key="detail_save_toggle",
+    if saved:
+        st.session_state.bookmark_category_picker_place_id = None
+        st.button(
+            "♥ 저장한 장소",
+            key="detail_save_remove",
+            type="primary",
+            use_container_width=True,
+            on_click=toggle_current_bookmark,
+            args=(place_id,),
+            help="클릭하면 즐겨찾기에서 삭제됩니다.",
+        )
+    elif st.button(
+        "♡ 이 장소 저장하기",
+        key="detail_save_open",
         type="primary",
         use_container_width=True,
-        on_click=toggle_current_bookmark,
-        args=(place_id,),
-    )
+    ):
+        st.session_state.bookmark_category_picker_place_id = place_id
+
+    if (
+        not saved
+        and st.session_state.bookmark_category_picker_place_id == place_id
+    ):
+        with st.container(key="detail_bookmark_category_picker"):
+            st.markdown("**어느 카테고리에 담아둘까요?**")
+            st.caption("기존 카테고리를 고르거나 새 카테고리를 만들 수 있어요.")
+            bookmark_data = load_bookmarks()
+            existing_categories = user_bookmark_categories(
+                bookmark_data, st.session_state.nickname.strip()
+            )
+            assignment_options = [
+                BOOKMARK_CATEGORY_UNCATEGORIZED,
+                *existing_categories,
+                BOOKMARK_CATEGORY_NEW,
+            ]
+            selected_category = st.selectbox(
+                "즐겨찾기 카테고리",
+                assignment_options,
+                key=f"detail_bookmark_category_{place_id}",
+            )
+            new_category = ""
+            if selected_category == BOOKMARK_CATEGORY_NEW:
+                new_category = st.text_input(
+                    "새 카테고리 이름",
+                    key=f"detail_bookmark_new_category_{place_id}",
+                    max_chars=30,
+                    placeholder="예: 비 오는 날 · 꼭 가볼 곳",
+                )
+            confirm_save, cancel_save = st.columns([1.4, 1])
+            with confirm_save:
+                if st.button(
+                    "이 카테고리에 저장",
+                    key=f"detail_bookmark_confirm_{place_id}",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    category_value, category_error = resolve_bookmark_category(
+                        selected_category,
+                        new_category,
+                        existing_categories,
+                    )
+                    if category_error:
+                        st.error(category_error)
+                    else:
+                        toggle_current_bookmark(place_id, category_value or "")
+                        st.rerun()
+            with cancel_save:
+                if st.button(
+                    "취소",
+                    key=f"detail_bookmark_cancel_{place_id}",
+                    use_container_width=True,
+                ):
+                    st.session_state.bookmark_category_picker_place_id = None
+                    st.rerun()
     flash = st.session_state.pop("bookmark_flash", None)
     if flash:
         kind, message = flash
@@ -1755,12 +1882,6 @@ def render_detail(places: pd.DataFrame) -> None:
 
 
 
-def bookmark_category_text(value: object) -> str:
-    if pd.isna(value):
-        return ""
-    return str(value).strip()
-
-
 def bookmark_category_options(bookmarks: pd.DataFrame) -> list[str]:
     categories = sorted(
         {
@@ -1825,6 +1946,7 @@ def render_bookmarks(places: pd.DataFrame) -> None:
         return
     mine["_created"] = pd.to_datetime(mine["created_at"], errors="coerce")
     mine = mine.sort_values("_created", ascending=False, na_position="last")
+    existing_categories = user_bookmark_categories(mine, normalized)
     category_options = bookmark_category_options(mine)
     if st.session_state.bookmark_category_filter not in category_options:
         st.session_state.bookmark_category_filter = "전체"
@@ -1916,13 +2038,27 @@ def render_bookmarks(places: pd.DataFrame) -> None:
                         """,
                         unsafe_allow_html=True,
                     )
-                custom_category = st.text_input(
+                current_category = bookmark_category_text(place.get("custom_category"))
+                assignment_options = [
+                    BOOKMARK_CATEGORY_UNCATEGORIZED,
+                    *existing_categories,
+                    BOOKMARK_CATEGORY_NEW,
+                ]
+                current_selection = current_category or BOOKMARK_CATEGORY_UNCATEGORIZED
+                custom_category_selection = st.selectbox(
                     "나만의 카테고리",
-                    value=bookmark_category_text(place.get("custom_category")),
-                    key=f"bookmark_category_{place['bookmark_id']}",
-                    max_chars=30,
-                    placeholder="예: 비 오는 날 · 꼭 가볼 곳",
+                    assignment_options,
+                    index=assignment_options.index(current_selection),
+                    key=f"bookmark_category_select_{place['bookmark_id']}",
                 )
+                new_custom_category = ""
+                if custom_category_selection == BOOKMARK_CATEGORY_NEW:
+                    new_custom_category = st.text_input(
+                        "새 카테고리 이름",
+                        key=f"bookmark_category_new_{place['bookmark_id']}",
+                        max_chars=30,
+                        placeholder="예: 비 오는 날 · 꼭 가볼 곳",
+                    )
                 memo_value = st.text_area(
                     "나들이 메모",
                     value=clean_text(place.get("memo"), ""),
@@ -1935,13 +2071,17 @@ def render_bookmarks(places: pd.DataFrame) -> None:
                 memo_action, delete_action = st.columns([1, .7])
                 with memo_action:
                     if st.button(
-                        "분류·메모 저장",
+                        "카테고리·메모 저장",
                         key=f"bookmark_memo_save_{place['bookmark_id']}",
                         use_container_width=True,
                     ):
-                        category_value = custom_category.strip()
-                        if category_value in {"전체", "미분류"}:
-                            st.error("‘전체’와 ‘미분류’는 카테고리 이름으로 사용할 수 없습니다.")
+                        category_value, category_error = resolve_bookmark_category(
+                            custom_category_selection,
+                            new_custom_category,
+                            existing_categories,
+                        )
+                        if category_error:
+                            st.error(category_error)
                             continue
                         # Always update the complete source table by its unique ID.
                         updated = load_bookmarks()
@@ -1953,7 +2093,7 @@ def render_bookmarks(places: pd.DataFrame) -> None:
                             st.error("수정할 북마크를 정확히 찾을 수 없습니다.")
                         else:
                             updated.loc[target, "memo"] = memo_value.strip()
-                            updated.loc[target, "custom_category"] = category_value
+                            updated.loc[target, "custom_category"] = category_value or ""
                             if write_bookmarks(updated):
                                 st.session_state.favorites_flash = (
                                     "💾",
