@@ -8,7 +8,7 @@
  * 1. setupCsvSyncSheets
  * 2. importJejuIrangCsvFromDrive 또는 Google Sheets UI로 CSV 가져오기
  * 3. setupAdminReviewControls
- * 4. syncApprovedRequests
+ * 4. review_queue에서 행 선택 → approveAndSyncSelectedRequest
  */
 
 const CSV_SYNC_CONFIG = Object.freeze({
@@ -135,6 +135,261 @@ const CSV_SYNC_BOOLEAN_FIELDS = Object.freeze([
   'resident_discount',
   'diaper_changing_table',
 ]);
+
+/**
+ * Spreadsheet를 열 때 검수자가 사용할 단일 메뉴를 표시합니다.
+ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('🍊 제주아이랑 검수')
+    .addItem('선택 행 승인·반영', 'approveAndSyncSelectedRequest')
+    .addToUi();
+}
+
+/**
+ * review_queue의 선택 행 하나를 승인하고 즉시 master/CSV에 반영합니다.
+ * 검수자는 상태값과 관리자 작업을 따로 입력할 필요가 없습니다.
+ */
+function approveAndSyncSelectedRequest() {
+  const ui = SpreadsheetApp.getUi();
+  const spreadsheet = csvSyncGetSpreadsheet_();
+  const sheet = spreadsheet.getActiveSheet();
+  if (!sheet || sheet.getName() !== CSV_SYNC_CONFIG.REVIEW_QUEUE_SHEET_NAME) {
+    ui.alert('review_queue에서 검수할 행을 먼저 선택해 주세요.');
+    return;
+  }
+
+  const row = sheet.getActiveRange().getRow();
+  if (row < 2) {
+    ui.alert('헤더가 아닌 검수할 요청 행을 선택해 주세요.');
+    return;
+  }
+
+  const headers = csvSyncGetHeaderMap_(sheet);
+  [
+    'request_id',
+    'request_type',
+    'review_status',
+    'admin_action',
+    'match_status',
+    'sync_message',
+  ].forEach(function (header) {
+    if (!headers[header]) {
+      throw new Error('review_queue에 ' + header + ' 헤더가 없습니다.');
+    }
+  });
+
+  const record = csvSyncReadQueueRow_(sheet, row);
+  const requestId = csvSyncNormalizeText_(record.request_id);
+  const requestType = csvSyncUpper_(record.request_type);
+  const currentStatus = csvSyncUpper_(record.review_status);
+  if (!requestId) {
+    ui.alert('선택한 행에 request_id가 없습니다.');
+    return;
+  }
+  if (requestType !== 'NEW' && requestType !== 'UPDATE') {
+    ui.alert('request_type이 NEW 또는 UPDATE가 아닙니다.');
+    return;
+  }
+  if (currentStatus === 'APPLIED') {
+    ui.alert('이미 반영된 요청입니다.');
+    return;
+  }
+
+  const applyFields = csvSyncParseFieldList_(record.apply_fields);
+  if (requestType === 'UPDATE' && applyFields.length === 0) {
+    ui.alert('수정 요청의 apply_fields가 비어 있습니다. 변경할 항목을 먼저 확인해 주세요.');
+    return;
+  }
+
+  const needsLocation =
+    requestType === 'NEW' ||
+    applyFields.some(function (field) {
+      return CSV_SYNC_LOCATION_FIELDS.indexOf(field) >= 0;
+    });
+
+  const placeName = csvSyncNormalizeText_(
+    record.approved_place_name || record.proposed_place_name || record.target_place_name
+  );
+  const sourceName = csvSyncNormalizeText_(record.source_place_name);
+  const sourceAddress = csvSyncNormalizeText_(
+    record.source_road_address || record.source_address
+  );
+  const reviewSummary = csvSyncBuildOneClickSummary_(
+    record,
+    requestType,
+    applyFields
+  );
+
+  if (needsLocation && csvSyncUpper_(record.match_status) !== 'CONFIRMED') {
+    const latitude = csvSyncNumber_(record.source_latitude);
+    const longitude = csvSyncNumber_(record.source_longitude);
+    if (
+      csvSyncUpper_(record.source_provider) !== 'VWORLD' ||
+      !sourceName ||
+      !sourceAddress ||
+      latitude === null ||
+      longitude === null
+    ) {
+      ui.alert(
+        'VWorld 후보를 확정할 수 없습니다.',
+        '장소명·주소·좌표를 확인한 뒤 다시 눌러 주세요.',
+        ui.ButtonSet.OK
+      );
+      return;
+    }
+
+    const candidateAnswer = ui.alert(
+      '이 VWorld 장소가 맞나요?',
+      '요청 장소: ' + placeName + '\n' +
+        reviewSummary + '\n\n' +
+        'VWorld 장소: ' + sourceName + '\n' +
+        '주소: ' + sourceAddress + '\n\n' +
+        '맞으면 [예]를 누르세요. 승인과 CSV 반영까지 한 번에 진행됩니다.',
+      ui.ButtonSet.YES_NO
+    );
+    if (candidateAnswer !== ui.Button.YES) {
+      return;
+    }
+    sheet.getRange(row, headers.match_status).setValue('CONFIRMED');
+  } else {
+    const approveAnswer = ui.alert(
+      '선택한 요청을 반영할까요?',
+      '장소: ' + placeName + '\n' +
+        reviewSummary + '\n\n' +
+        '맞으면 [예]를 누르세요. 승인과 CSV 생성을 한 번에 진행합니다.',
+      ui.ButtonSet.YES_NO
+    );
+    if (approveAnswer !== ui.Button.YES) {
+      return;
+    }
+  }
+
+  sheet.getRange(row, headers.admin_action).setValue('APPROVE');
+  sheet.getRange(row, headers.review_status).setValue('APPROVED');
+  SpreadsheetApp.flush();
+
+  csvSyncSyncApprovedRequests_(requestId);
+  SpreadsheetApp.flush();
+
+  const finalStatus = csvSyncUpper_(
+    sheet.getRange(row, headers.review_status).getDisplayValue()
+  );
+  const finalMessage = csvSyncNormalizeText_(
+    sheet.getRange(row, headers.sync_message).getDisplayValue()
+  );
+  if (finalStatus === 'APPLIED') {
+    ui.alert('완료', '장소 정보를 승인하고 CSV에 반영했습니다.', ui.ButtonSet.OK);
+  } else {
+    ui.alert(
+      '반영하지 못했습니다.',
+      finalMessage || 'sync_message를 확인해 주세요.',
+      ui.ButtonSet.OK
+    );
+  }
+}
+
+function csvSyncReadQueueRow_(sheet, row) {
+  const lastColumn = sheet.getLastColumn();
+  const headerValues = sheet
+    .getRange(1, 1, 1, lastColumn)
+    .getDisplayValues()[0];
+  const rowValues = sheet.getRange(row, 1, 1, lastColumn).getValues()[0];
+  const record = {};
+  headerValues.forEach(function (header, index) {
+    const normalized = csvSyncNormalizeText_(header);
+    if (normalized) {
+      record[normalized] = rowValues[index];
+    }
+  });
+  return record;
+}
+
+function csvSyncBuildOneClickSummary_(record, requestType, applyFields) {
+  const labels = {
+    place_name: '장소명',
+    category: '시설유형',
+    space_type: '공간',
+    parking: '주차',
+    has_admission_fee: '입장료 있음',
+    has_age_limit: '연령제한 있음',
+    nursing_room: '수유실',
+    stroller_rental: '유모차 대여',
+    phone: '전화번호',
+    website_url: '홈페이지',
+    closed_days: '휴무일',
+    opening_hours: '운영시간',
+    admission_fee_detail: '이용요금 상세',
+    age_limit_detail: '연령제한 상세',
+    reservation_url: '예약 주소',
+    resident_discount: '도민 할인',
+    diaper_changing_table: '기저귀 교환대',
+    photo_url: '사진',
+    description: '한 줄 설명',
+    review_summary: '참고사항',
+    road_address: '주소',
+    latitude: '위도',
+    longitude: '경도',
+    city_name: '시',
+    legal_dong_name: '읍면동',
+    region_group: '지역',
+  };
+  const booleanFields = [
+    'has_admission_fee',
+    'has_age_limit',
+    'nursing_room',
+    'stroller_rental',
+    'resident_discount',
+    'diaper_changing_table',
+  ];
+  const clearFields = csvSyncParseFieldList_(record.clear_fields);
+
+  function displayValue(field) {
+    if (clearFields.indexOf(field) >= 0) {
+      return '삭제';
+    }
+    if (CSV_SYNC_LOCATION_FIELDS.indexOf(field) >= 0) {
+      return 'VWorld 주소·좌표로 갱신';
+    }
+    const approvedHeader = CSV_SYNC_APPROVED_FIELDS[field];
+    const value = approvedHeader
+      ? csvSyncNormalizeText_(record[approvedHeader])
+      : '';
+    if (booleanFields.indexOf(field) >= 0) {
+      if (csvSyncUpper_(value) === 'TRUE') {
+        return '있음';
+      }
+      if (csvSyncUpper_(value) === 'FALSE') {
+        return '없음';
+      }
+    }
+    return value || '기존값 유지';
+  }
+
+  let fields;
+  if (requestType === 'NEW') {
+    fields = [
+      'category',
+      'space_type',
+      'parking',
+      'has_admission_fee',
+      'has_age_limit',
+      'nursing_room',
+      'stroller_rental',
+    ];
+  } else {
+    fields = applyFields.slice(0, 8);
+  }
+
+  const lines = fields.map(function (field) {
+    return (labels[field] || field) + ': ' + displayValue(field);
+  });
+  if (requestType === 'UPDATE' && applyFields.length > fields.length) {
+    lines.push('그 외 변경: ' + (applyFields.length - fields.length) + '개');
+  }
+  return (requestType === 'NEW' ? '신규 등록 내용' : '변경 예정 내용') +
+    '\n' + lines.join('\n');
+}
 
 /**
  * master/export/sync_log 시트를 준비합니다.
@@ -295,6 +550,10 @@ function setupAdminReviewControls() {
  * APPROVED + APPROVE 행을 master에 반영하고 Drive CSV를 생성합니다.
  */
 function syncApprovedRequests() {
+  return csvSyncSyncApprovedRequests_('');
+}
+
+function csvSyncSyncApprovedRequests_(onlyRequestId) {
   const lock = LockService.getScriptLock();
   lock.waitLock(CSV_SYNC_CONFIG.LOCK_TIMEOUT_MS);
 
@@ -333,7 +592,9 @@ function syncApprovedRequests() {
     const eligible = queueRows.filter(function (entry) {
       return (
         csvSyncUpper_(entry.record.review_status) === 'APPROVED' &&
-        csvSyncUpper_(entry.record.admin_action) === 'APPROVE'
+        csvSyncUpper_(entry.record.admin_action) === 'APPROVE' &&
+        (!onlyRequestId ||
+          csvSyncNormalizeText_(entry.record.request_id) === onlyRequestId)
       );
     });
 

@@ -88,6 +88,22 @@ assert.strictEqual(run(`newResult.syncedPlaceId`), 'P002');
 assert.strictEqual(run(`testMaster[1].region_group`), '성산/표선');
 assert.strictEqual(run(`testMaster[1].parking`), '무료');
 
+assert.match(
+  run(`csvSyncBuildOneClickSummary_({
+    approved_category: '전시/기념관', approved_space_type: '실내',
+    approved_parking: '무료', approved_has_admission_fee: 'FALSE',
+    approved_has_age_limit: 'FALSE', approved_nursing_room: 'TRUE',
+    approved_stroller_rental: 'FALSE'
+  }, 'NEW', [])`),
+  /시설유형: 전시\/기념관/
+);
+assert.match(
+  run(`csvSyncBuildOneClickSummary_({
+    approved_phone: '064-123-4567', approved_description: '새 설명'
+  }, 'UPDATE', ['phone', 'description'])`),
+  /전화번호: 064-123-4567/
+);
+
 assert.throws(
   () => run(`csvSyncApplyApprovedRequest_({
     request_id: 'REQ-BAD-1', request_type: 'UPDATE',

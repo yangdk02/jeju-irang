@@ -290,6 +290,7 @@ st.markdown(
     .result-heading {display: flex; align-items: center; gap: .7rem; margin: 1.35rem 0 .7rem; font-size: 1.55rem; font-weight: 760;}
     .search-result-heading, .favorites-result-heading {font-weight:850 !important;}
     .result-heading b {font-size:.85rem; color:var(--jeju-brown); background:var(--jeju-yellow-soft); border-radius:999px; padding:.35rem .65rem;}
+    .detail-recommend-heading {margin-top:2.2rem; margin-bottom:.85rem; font-weight:850 !important;}
     .region-title {font-size: 1.55rem; font-weight: 780; letter-spacing: -.035em; margin-bottom: .15rem;}
     .section-title {font-size: 1.45rem; font-weight: 760; color: var(--text-color); margin: .8rem 0 .3rem;}
     [data-testid="stImage"] img {
@@ -1417,6 +1418,52 @@ def detail_row(icon: str, label: str, value: object) -> str:
     )
 
 
+def parking_detail(value: object) -> tuple[str, str]:
+    parking_text = clean_text(value, "주차 정보 없음")
+    parking_label = {
+        "무료": "무료 주차 가능",
+        "유료": "유료 주차 가능",
+        "무료/유료": "무료/유료 주차 가능",
+        "무료/유료 주차": "무료/유료 주차 가능",
+        "주차 불가": "주차 불가",
+    }.get(parking_text, parking_text)
+    return ("❌" if parking_text == "주차 불가" else "🚙", parking_label)
+
+
+def detail_recommendations(
+    places: pd.DataFrame,
+    current_place: pd.Series,
+    limit: int = 3,
+) -> pd.DataFrame:
+    candidates = places[
+        places["place_id"].astype(str) != str(current_place.get("place_id"))
+    ].copy()
+    if candidates.empty:
+        return candidates
+
+    candidates["_recommend_score"] = 0
+    for column, weight in (("category", 4), ("region_group", 2), ("space_type", 1)):
+        current_value = clean_text(current_place.get(column), "")
+        if current_value and column in candidates.columns:
+            candidates["_recommend_score"] += (
+                candidates[column].fillna("").astype(str).eq(current_value).astype(int) * weight
+            )
+    if "photo_url" in candidates.columns:
+        candidates["_recommend_score"] += (
+            candidates["photo_url"].fillna("").astype(str).str.strip().ne("").astype(int)
+        )
+
+    return (
+        candidates.sort_values(
+            ["_recommend_score", "place_name"],
+            ascending=[False, True],
+            kind="stable",
+        )
+        .head(limit)
+        .drop(columns=["_recommend_score"])
+    )
+
+
 def render_detail(places: pd.DataFrame) -> None:
     st.html(
         """
@@ -1459,11 +1506,13 @@ def render_detail(places: pd.DataFrame) -> None:
         "연령제한 없음" if pd.notna(place.get("has_age_limit")) and not bool(place.get("has_age_limit"))
         else clean_text(place.get("age_limit_detail"), "연령제한 있음")
     )
+    parking_icon, parking_value = parking_detail(place.get("parking"))
     rows = "".join([
         detail_row("📍", "위치", place.get("road_address")),
         detail_row("🕘", "운영시간", place.get("opening_hours")),
         detail_row("₩", "이용 요금", admission_value),
         detail_row("☺", "연령제한", age_value),
+        detail_row(parking_icon, "주차 가능 여부", parking_value),
     ])
     website = clean_text(place.get("website_url"), "")
     reservation = clean_text(place.get("reservation_url"), "")
@@ -1567,15 +1616,20 @@ def render_detail(places: pd.DataFrame) -> None:
                 )
             else:
                 st.info("위치 정보가 등록되지 않았습니다.")
-            parking_text = clean_text(place.get("parking"), "주차 정보 없음")
-            parking_icon = "❌" if parking_text == "주차 불가" else "🚙"
-            parking_label = {
-                "무료": "무료 주차 가능",
-                "유료": "유료 주차 가능",
-                "무료/유료": "무료/유료 주차 가능",
-                "무료/유료 주차": "무료/유료 주차 가능",
-            }.get(parking_text, parking_text)
-            st.markdown(f"{parking_icon} {escape(parking_label)}")
+
+    recommendations = detail_recommendations(places, place, limit=3)
+    if not recommendations.empty:
+        st.markdown(
+            '<div class="result-heading detail-recommend-heading">'
+            '<span>다음 일정으로 여기는 어떠세요?</span>'
+            f'<b>{len(recommendations)}곳</b></div>',
+            unsafe_allow_html=True,
+        )
+        render_place_grid(
+            recommendations,
+            f"detail_recommend_{place_id}",
+            columns=3,
+        )
 
     render_quiet_proposal_link(
         "✎ 장소 정보 수정 제안",
