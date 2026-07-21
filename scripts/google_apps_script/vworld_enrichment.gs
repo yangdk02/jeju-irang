@@ -24,7 +24,7 @@ const CONFIG = Object.freeze({
   LOCK_TIMEOUT_MS: 30000,
   VWORLD_PAGE_SIZE: 30,
   MAX_CANDIDATES_TO_STORE: 10,
-  VWORLD_MAX_ATTEMPTS: 3,
+  VWORLD_MAX_ATTEMPTS: 5,
   VWORLD_RETRY_BASE_MS: 1200,
 });
 
@@ -651,22 +651,12 @@ function buildInitialApprovedValues_(requestType, proposed, applyFields) {
 
 function validateBasicResponse_(requestType, response, proposed, applyFields) {
   const problems = [];
-  const required = [
-    ['장소명', proposed.place_name],
-    ['실내/실외', proposed.space_type],
-    ['시설유형', proposed.category],
-    ['입장료 여부', proposed.has_admission_fee],
-    ['연령제한 여부', proposed.has_age_limit],
-    ['수유실 여부', proposed.nursing_room],
-    ['유모차 대여 여부', proposed.stroller_rental],
-    ['주차 유형', proposed.parking],
-  ];
 
-  required.forEach(function (item) {
-    if (item[1] === '') {
-      problems.push(item[0] + ' 값이 없거나 허용값이 아닙니다.');
-    }
-  });
+  // Google Form에서는 장소명만 필수다. 아래 값은 사용자가 모르거나
+  // '잘 모르겠음/그 외'를 선택하면 빈 값으로 두고 관리자가 승인 전에 보완한다.
+  if (proposed.place_name === '') {
+    problems.push('장소명 값이 없습니다.');
+  }
 
   if (requestType === 'UPDATE') {
     if (!normalizeText_(response.target_place_name)) {
@@ -776,6 +766,13 @@ function callVworldPlaceSearch_(query, apiKey) {
   const body = response.getContentText('UTF-8');
 
   if (statusCode !== 200) {
+    if (statusCode >= 500) {
+      throw new Error(
+        'VWorld API HTTP ' +
+          statusCode +
+          ' (VWorld 서버 일시 오류입니다. 잠시 후 retryFailedVworldSearches를 실행해 주세요.)'
+      );
+    }
     throw new Error(
       'VWorld API HTTP ' + statusCode + ': ' + truncate_(body, 500)
     );

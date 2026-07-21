@@ -33,6 +33,11 @@
 정상 응답에서는 `admin_action`, `review_status`, `match_status`를 직접 수정하지
 않습니다.
 
+사용자가 장소명만 입력해도 정상 응답입니다. 실내/실외, 시설유형, 입장료,
+연령제한, 수유실, 유모차 대여, 주차를 모르거나 비워 둔 경우에는
+`approved_*` 값도 비어 있을 수 있습니다. 이 값들은 Form 접수 단계에서는
+오류가 아니며, CSV 반영 전에 관리자가 확인하여 채웁니다.
+
 ### 확인창 내용이 틀릴 때
 
 `아니오`를 누르고 같은 `review_queue` 행의 잘못된 값만 고칩니다. 수정 후
@@ -94,6 +99,22 @@ website_url, reservation_url
 
 같은 행의 `sync_message`를 확인하고 원인이 된 값을 수정한 다음
 `선택 행 승인·반영`을 다시 누릅니다.
+
+#### `VWORLD_API_ERROR` 또는 `502 Bad Gateway`가 나온 경우
+
+VWorld 서버의 일시 오류이므로 Google Form을 다시 제출하거나
+`form_responses`를 수정하지 않습니다.
+
+1. Apps Script 편집기를 엽니다.
+2. 상단 함수 목록에서 `retryFailedVworldSearches`를 선택합니다.
+3. `실행`을 누릅니다.
+4. `review_queue`의 기존 요청에서 `match_status`, VWorld 후보 정보와
+   `sync_message`가 갱신되었는지 확인합니다.
+
+이 함수는 기존 `request_id`와 Form 응답을 유지한 채
+`match_status=UNSEARCHED`이고 `sync_message`가 `VWORLD_API_ERROR:`로 시작하는
+행만 다시 검색합니다. 다시 502 오류가 발생하면 행을 삭제하지 말고
+10~30분 뒤 같은 함수를 다시 실행합니다.
 
 ### 승인하면 안 되는 경우
 
