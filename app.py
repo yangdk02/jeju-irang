@@ -49,6 +49,7 @@ BOOKMARK_COLUMNS = [
     "custom_category",
 ]
 PASSWORD_ITERATIONS = 200_000
+CARD_DESCRIPTION_LENGTH = 50
 
 GOOGLE_FORM_ENV_KEYS = {
     "new_place_url": "GOOGLE_FORM_NEW_PLACE_URL",
@@ -333,11 +334,25 @@ st.markdown(
     .place-card h3 {margin: .35rem 0 .45rem; font-size: 1.22rem; color: var(--text-color); letter-spacing: -.025em;}
     .place-card p {margin: .25rem 0; color: var(--jeju-muted); font-size: .91rem;}
     .favorite-card {min-height:175px; background:linear-gradient(145deg,#fff,var(--jeju-pink-soft));}
+    div[data-testid="stVerticalBlock"][class*="st-key-place_tile_"],
+    div[data-testid="stVerticalBlock"][class*="st-key-favorite_tile_"] {
+        gap:0 !important; overflow:hidden; border-radius:20px;
+        box-shadow:0 10px 26px rgba(73,56,47,.10);
+    }
+    .card-media {
+        width:100%; height:210px; overflow:hidden;
+        border-radius:20px 20px 0 0; background:linear-gradient(135deg,var(--jeju-sky-soft),var(--jeju-mint-soft));
+    }
+    .card-media img {display:block; width:100%; height:100%; object-fit:cover;}
+    .card-media-placeholder {
+        display:grid; place-items:center; width:100%; height:100%;
+        color:var(--jeju-brown); font-size:3rem;
+    }
     div[data-testid="stVerticalBlock"][class*="st-key-place_card_"],
     div[data-testid="stVerticalBlock"][class*="st-key-favorite_card_"] {
-        min-height:180px; padding:1rem 1.1rem !important; border-radius:20px;
-        background:#fff; box-shadow:0 10px 26px rgba(73,56,47,.10);
-        gap:.3rem !important;
+        height:240px; min-height:240px; padding:1.55rem 1.1rem .75rem !important; border-radius:20px;
+        background:#fff; border-radius:0 0 20px 20px; box-shadow:none;
+        gap:.3rem !important; overflow:hidden;
     }
     div[class*="st-key-place_name_"],
     div[class*="st-key-favorite_name_"] {
@@ -361,6 +376,10 @@ st.markdown(
         color:var(--jeju-orange-deep) !important; text-decoration:underline;
     }
     .place-card-copy p {margin:.25rem 0; color:var(--jeju-muted); font-size:.91rem;}
+    .place-card-copy .card-description {
+        height:4.05em; line-height:1.35; overflow:hidden;
+    }
+    .card-description-fill {visibility:hidden;}
     .saved-at {color:color-mix(in srgb, var(--jeju-pink) 60%, var(--text-color)) !important; font-size:.82rem !important;}
     div[data-testid="stVerticalBlock"][class*="st-key-detail_bookmark_category_picker"] {
         margin-top:.7rem; padding:1rem 1.1rem !important; border-radius:18px;
@@ -543,6 +562,24 @@ def clean_text(value: object, fallback: str = "정보 없음") -> str:
         return fallback
     text = str(value).strip()
     return text if text else fallback
+
+
+def card_description(value: object, fallback: str) -> str:
+    """Return a card description of at most 50 characters, including spaces."""
+    text = " ".join(clean_text(value, fallback).split())
+    if len(text) <= CARD_DESCRIPTION_LENGTH:
+        return text
+    return f"{text[: CARD_DESCRIPTION_LENGTH - 1]}…"
+
+
+def card_description_markup(value: object, fallback: str) -> str:
+    """Reserve the same visual space as a 50-character Korean description."""
+    text = card_description(value, fallback)
+    invisible_fill = "가" * max(0, CARD_DESCRIPTION_LENGTH - len(text))
+    return (
+        f"{escape(text)}"
+        f'<span class="card-description-fill" aria-hidden="true">{invisible_fill}</span>'
+    )
 
 
 def get_google_form_settings() -> dict[str, str]:
@@ -963,6 +1000,19 @@ def display_tags(place: pd.Series, include_region: bool = True) -> str:
     return "".join(f'<span class="tag">{value}</span>' for value in values if value)
 
 
+def render_card_media(photo_url: str, placeholder: str) -> None:
+    if photo_url:
+        content = (
+            f'<img src="{escape(photo_url, quote=True)}" alt="" loading="lazy">'
+        )
+    else:
+        content = f'<div class="card-media-placeholder">{escape(placeholder)}</div>'
+    st.markdown(
+        f'<div class="card-media">{content}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def format_distance(distance_km: object) -> str:
     if pd.isna(distance_km):
         return ""
@@ -977,7 +1027,9 @@ def render_place_grid(frame: pd.DataFrame, key_prefix: str, columns: int = 3) ->
         row_columns = st.columns(columns)
         for offset, (_, place) in enumerate(frame.iloc[start : start + columns].iterrows()):
             with row_columns[offset]:
-                description = clean_text(place.get("description"), "아이와 함께 둘러볼 제주 장소")
+                description_markup = card_description_markup(
+                    place.get("description"), "아이와 함께 둘러볼 제주 장소"
+                )
                 location = " · ".join(
                     part
                     for part in [clean_text(place.get("city_name"), ""), clean_text(place.get("legal_dong_name"), "")]
@@ -986,30 +1038,28 @@ def render_place_grid(frame: pd.DataFrame, key_prefix: str, columns: int = 3) ->
                 distance = format_distance(place.get("_distance_km"))
                 distance_line = f"<p>🧭 현재 위치에서 {distance}</p>" if distance else ""
                 photo_url = clean_text(place.get("photo_url"), "")
-                if photo_url:
-                    st.image(photo_url, use_container_width=True)
-                else:
-                    st.markdown('<div class="photo-placeholder">🍊</div>', unsafe_allow_html=True)
-                with st.container(key=f"place_card_{key_prefix}_{place['place_id']}"):
-                    st.markdown(f'<div>{display_tags(place)}</div>', unsafe_allow_html=True)
-                    st.button(
-                        clean_text(place.get("place_name")),
-                        key=f"place_name_{key_prefix}_{place['place_id']}",
-                        type="tertiary",
-                        use_container_width=True,
-                        on_click=go_to,
-                        args=("detail", str(place["place_id"])),
-                    )
-                    st.markdown(
-                        f"""
-                        <div class="place-card-copy">
-                            <p>{escape(description)}</p>
-                            <p>📍 {escape(location or '위치 정보 없음')}</p>
-                            {distance_line}
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                with st.container(key=f"place_tile_{key_prefix}_{place['place_id']}"):
+                    render_card_media(photo_url, "🍊")
+                    with st.container(key=f"place_card_{key_prefix}_{place['place_id']}", height=240):
+                        st.markdown(f'<div>{display_tags(place)}</div>', unsafe_allow_html=True)
+                        st.button(
+                            clean_text(place.get("place_name")),
+                            key=f"place_name_{key_prefix}_{place['place_id']}",
+                            type="tertiary",
+                            use_container_width=True,
+                            on_click=go_to,
+                            args=("detail", str(place["place_id"])),
+                        )
+                        st.markdown(
+                            f"""
+                            <div class="place-card-copy">
+                                <p class="card-description">{description_markup}</p>
+                                <p>📍 {escape(location or '위치 정보 없음')}</p>
+                                {distance_line}
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
 
 
 def render_home(places: pd.DataFrame) -> None:
@@ -1829,6 +1879,9 @@ def render_detail(places: pd.DataFrame) -> None:
         point_items.append("기저귀 교환대가 있어요")
     if clean_text(place.get("space_type"), "") == "실내":
         point_items.append("실내 공간이라 날씨 영향을 덜 받아요")
+    review_summary = clean_text(place.get("review_summary"), "")
+    if review_summary:
+        point_items.append(review_summary)
     if not point_items:
         point_items.append("등록된 아이 동반 편의시설 정보가 없어요")
 
@@ -1844,7 +1897,6 @@ def render_detail(places: pd.DataFrame) -> None:
             for item in [
                 f"휴무일: {clean_text(place.get('closed_days'))}",
                 f"전화: {clean_text(place.get('phone'))}",
-                clean_text(place.get("review_summary"), "방문 전 운영 정보를 확인해 주세요"),
             ]:
                 st.markdown(f'<div class="detail-check">{escape(item)}</div>', unsafe_allow_html=True)
     with lower_columns[2]:
@@ -2011,33 +2063,31 @@ def render_bookmarks(places: pd.DataFrame) -> None:
         for offset, (_, place) in enumerate(joined.iloc[start : start + 3].iterrows()):
             with columns[offset]:
                 photo_url = clean_text(place.get("photo_url"), "")
-                if photo_url:
-                    st.image(photo_url, use_container_width=True)
-                else:
-                    st.markdown('<div class="photo-placeholder">♥</div>', unsafe_allow_html=True)
-                with st.container(key=f"favorite_card_{place['bookmark_id']}"):
-                    st.markdown(f'<div>{display_tags(place)}</div>', unsafe_allow_html=True)
-                    place_name = clean_text(place.get("place_name"), "삭제되었거나 찾을 수 없는 장소")
-                    if pd.notna(place.get("place_name")):
-                        st.button(
-                            place_name,
-                            key=f"favorite_name_{place['bookmark_id']}",
-                            type="tertiary",
-                            use_container_width=True,
-                            on_click=go_to,
-                            args=("detail", str(place["place_id"])),
+                with st.container(key=f"favorite_tile_{place['bookmark_id']}"):
+                    render_card_media(photo_url, "♥")
+                    with st.container(key=f"favorite_card_{place['bookmark_id']}", height=240):
+                        st.markdown(f'<div>{display_tags(place)}</div>', unsafe_allow_html=True)
+                        place_name = clean_text(place.get("place_name"), "삭제되었거나 찾을 수 없는 장소")
+                        if pd.notna(place.get("place_name")):
+                            st.button(
+                                place_name,
+                                key=f"favorite_name_{place['bookmark_id']}",
+                                type="tertiary",
+                                use_container_width=True,
+                                on_click=go_to,
+                                args=("detail", str(place["place_id"])),
+                            )
+                        else:
+                            st.markdown(f"### {escape(place_name)}")
+                        st.markdown(
+                            f"""
+                            <div class="place-card-copy">
+                                <p class="card-description">{card_description_markup(place.get('description'), '아이와 함께 가고 싶은 제주 장소')}</p>
+                                <p class="saved-at">♡ 저장일시 · {escape(clean_text(place.get('created_at')))}</p>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
                         )
-                    else:
-                        st.markdown(f"### {escape(place_name)}")
-                    st.markdown(
-                        f"""
-                        <div class="place-card-copy">
-                            <p>{escape(clean_text(place.get('description'), '아이와 함께 가고 싶은 제주 장소'))}</p>
-                            <p class="saved-at">♡ 저장일시 · {escape(clean_text(place.get('created_at')))}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
                 current_category = bookmark_category_text(place.get("custom_category"))
                 assignment_options = [
                     BOOKMARK_CATEGORY_UNCATEGORIZED,

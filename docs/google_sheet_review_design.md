@@ -8,6 +8,12 @@
 
 > **2026-07-17 API 변경:** 장소 후보 검색은 VWorld 검색 API 2.0으로 전환하며 검수 컬럼은 `source_provider`, `source_place_id`, `source_place_name`, `source_address`, `source_road_address`, `source_latitude`, `source_longitude`, `source_category`를 사용한다. 아래의 `kakao_*` 관련 기존 설명보다 이 결정이 우선한다.
 
+> **2026-07-20 운영 변경:** 일반 검수자는 상태 컬럼을 직접 바꾸지 않는다.
+> `review_queue`에서 행을 선택하고
+> `🍊 제주아이랑 검수 → 선택 행 승인·반영`을 실행한다. 이 메뉴가 VWorld
+> 확인, 승인 상태 변경, master 반영, CSV 생성과 로그 기록을 한 번에 처리한다.
+> 실제 운영 절차는 `docs/reviewer_manual.md`를 우선한다.
+
 ## 1. 설계 목표
 
 장소 제안·수정 Google Form의 원본 응답을 보존하면서, 관리자가 카카오 장소와 최종 반영값을 검수하고 승인된 요청만 `data/jeju-irang.csv`에 반영할 수 있는 구조를 만든다.
@@ -16,9 +22,9 @@
 
 - Form 원본 응답은 수정하지 않는다.
 - `review_queue`에는 원본값, 관리자 확정값, 자동 생성값을 구분해서 둔다.
-- 관리자는 `review_status`를 직접 입력하지 않고 `admin_action`으로 상태 전환을 요청한다.
-- 카카오 검색 결과는 자동으로 제안할 수 있지만, 최종 장소는 관리자가 확인한다.
-- 주소·좌표·지역 그룹은 확정된 카카오 장소에서 자동 생성한다.
+- 관리자는 정상 응답에서 `review_status`, `admin_action`, `match_status`를 직접 수정하지 않는다.
+- VWorld 검색 결과는 자동으로 제안할 수 있지만, 최종 장소는 관리자가 확인한다.
+- 주소·좌표·지역 그룹은 확정된 VWorld 장소에서 자동 생성한다.
 - 수정 요청의 빈 값은 기존 CSV 값을 삭제하지 않는다.
 - 승인과 CSV 동기화 결과는 `sync_log`에 추가 기록하며 과거 기록을 수정하지 않는다.
 
@@ -435,16 +441,25 @@ Google Sheets의 보호된 시트와 범위 기능으로 편집 권한을 제한
 
 ## 13. 관리자 사용 순서
 
-1. `review_queue`에서 `PENDING` 필터 보기를 연다.
-2. `START_REVIEW`를 선택한다.
-3. Form 제안값, 기존 장소 정보, 카카오 검색 결과를 비교한다.
-4. 정확한 `kakao_place_id`를 선택하고 `match_status=CONFIRMED`로 설정한다.
-5. UPDATE라면 `apply_fields`와 `clear_fields`를 확인한다.
-6. `approved_*` 값을 보정한다.
-7. 중복과 자동 검증 결과를 확인한다.
-8. 반영 가능하면 `APPROVE`, 보완이 필요하면 `REQUEST_INFO`, 반영하지 않으면 `REJECT`를 선택한다.
-9. 동기화 후 `SYNCED`, `synced_place_id`, `synced_at`, `sync_message`를 확인한다.
-10. 문제가 있으면 `sync_log`의 최신 오류 행을 확인한다.
+### Google Form 응답
+
+1. `review_queue`에서 검수할 행의 아무 셀이나 선택한다.
+2. Form 제안값, `approved_*`, VWorld 장소명과 주소를 확인한다.
+3. `🍊 제주아이랑 검수 → 선택 행 승인·반영`을 누른다.
+4. 확인창 내용이 맞으면 `예`를 누른다.
+5. 성공 창과 해당 행의 `review_status=APPLIED`를 확인한다.
+
+확인창 내용이 틀릴 때만 같은 행의 `approved_*`, `source_*`,
+`target_place_name`, `apply_fields`, `clear_fields` 중 필요한 값을 수정하고 다시
+실행한다. 오류가 나면 `sync_message`를 먼저 확인한다.
+
+### 관리자 직접 입력·수정
+
+1. `jeju_irang_master`를 직접 수정한다.
+2. Apps Script에서 `exportJejuIrangCsv`를 실행한다.
+3. 자동 갱신된 `jeju_irang_export`와 생성된 CSV를 확인한다.
+
+`form_responses`, `jeju_irang_export`, `sync_log`는 직접 수정하지 않는다.
 
 ## 14. 구현 전 확인할 사항
 
