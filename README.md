@@ -145,3 +145,8 @@ VWORLD_API_KEY=
 
 - `TOUR_API_SERVICE_KEY`: 공공데이터포털 일반 인증키(Decoding)
 - `VWORLD_API_KEY`: VWorld 공간정보 오픈플랫폼 인증키
+
+## 운영 문서
+
+- [검수자 매뉴얼](docs/reviewer_manual.md): 장소 제안 검수, 데이터 갱신과 CSV 반영 절차
+- [유지보수 설정 안내](docs/maintenance_setup.md): Google Form, API, Google Sheets와 즐겨찾기 저장소의 최초 설정·복구 절차

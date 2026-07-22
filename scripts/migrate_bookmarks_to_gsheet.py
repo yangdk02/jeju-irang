@@ -84,7 +84,7 @@ if not configured:
     st.error(
         "사용 가능한 [connections.bookmarks] 또는 [connections.gsheets] "
         "서비스 계정 설정이 없습니다. "
-        "docs/google_sheets_bookmarks_setup.md를 확인해 주세요."
+        "docs/maintenance_setup.md의 즐겨찾기 설정을 확인해 주세요."
     )
     st.stop()
 
