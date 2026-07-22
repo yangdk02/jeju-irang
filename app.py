@@ -34,6 +34,7 @@ WELCOME_IMAGE_PATH = ASSETS_DIR / "welcome-family-jeju.png"
 FAVICON_PATH = ASSETS_DIR / "favicon.png"
 JUA_FONT_PATH = ASSETS_DIR / "social-carousel-v2" / "source" / "Jua-Regular.ttf"
 PLACES_PATH = DATA_DIR / "jeju-irang.csv"
+DEMO_PLACES_PATH = DATA_DIR / "demo_data.csv"
 BOOKMARKS_PATH = DATA_DIR / "bookmarks.csv"
 BOOKMARK_BACKUP_DIR = DATA_DIR / "backups"
 BOOKMARK_SHEET_CONNECTION_NAME = "bookmarks"
@@ -61,6 +62,7 @@ GOOGLE_FORM_ENV_KEYS = {
     "location_hint_entry": "GOOGLE_FORM_LOCATION_HINT_ENTRY",
     "update_request_value": "GOOGLE_FORM_UPDATE_REQUEST_VALUE",
 }
+DEMO_MODE_ENV_KEY = "JEJU_IRANG_DEMO_MODE"
 
 REGIONS = ["전체", "구좌/조천", "서귀포시", "성산/표선", "안덕/대정", "애월/한림", "제주시"]
 FEATURE_FILTERS = {
@@ -850,6 +852,22 @@ def get_google_form_settings() -> dict[str, str]:
     return settings
 
 
+def demo_mode_enabled() -> bool:
+    """Return whether the app should use the local, dependency-free demo data."""
+    try:
+        demo_settings = st.secrets.get("demo", {})
+    except (FileNotFoundError, KeyError, AttributeError):
+        demo_settings = {}
+    raw_value = (
+        demo_settings.get("enabled", False)
+        if demo_settings
+        else os.getenv(DEMO_MODE_ENV_KEY, "false")
+    )
+    if isinstance(raw_value, bool):
+        return raw_value
+    return str(raw_value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def get_place_update_form_url(place: pd.Series) -> str:
     location_hint = clean_text(place.get("road_address"), "")
     if not location_hint:
@@ -916,10 +934,11 @@ def load_places(path: Path, modified_at: float) -> pd.DataFrame:
 
 
 def get_places() -> pd.DataFrame:
-    if not PLACES_PATH.exists():
-        st.error(f"장소 데이터 파일을 찾을 수 없습니다: {PLACES_PATH}")
+    places_path = DEMO_PLACES_PATH if demo_mode_enabled() else PLACES_PATH
+    if not places_path.exists():
+        st.error(f"장소 데이터 파일을 찾을 수 없습니다: {places_path}")
         st.stop()
-    return load_places(PLACES_PATH, PLACES_PATH.stat().st_mtime)
+    return load_places(places_path, places_path.stat().st_mtime)
 
 
 def empty_bookmarks() -> pd.DataFrame:
@@ -993,6 +1012,12 @@ def bookmark_sheet_connection(connection_name: str):
 
 
 def load_bookmarks() -> pd.DataFrame:
+    if demo_mode_enabled():
+        stored = st.session_state.get("_demo_bookmarks")
+        if isinstance(stored, pd.DataFrame):
+            return normalize_bookmarks(stored)
+        return empty_bookmarks()
+
     use_google_sheet, connection_name, worksheet = bookmark_sheet_settings()
     if not use_google_sheet:
         return load_local_bookmarks()
@@ -1001,17 +1026,25 @@ def load_bookmarks() -> pd.DataFrame:
             worksheet=worksheet,
             ttl=0,
         )
+        st.session_state.bookmark_storage_error = ""
         return normalize_bookmarks(frame)
     except Exception:
-        st.error(
-            "즐겨찾기 Google Sheet를 불러오지 못했습니다. "
-            "잠시 후 다시 시도하거나 관리자에게 알려 주세요."
+        message = (
+            "즐겨찾기 저장소에 연결하지 못했어요. 장소 찾기·필터·상세정보는 "
+            "계속 이용할 수 있지만, 즐겨찾기 조회·저장·수정은 잠시 사용할 수 없습니다."
         )
-        st.stop()
+        st.session_state.bookmark_storage_error = message
+        st.error(message, icon="⚠️")
+        return empty_bookmarks()
 
 
 def write_bookmarks(frame: pd.DataFrame) -> bool:
     normalized = normalize_bookmarks(frame).fillna("")
+    if demo_mode_enabled():
+        st.session_state._demo_bookmarks = normalized.copy()
+        st.session_state.bookmark_storage_error = ""
+        return True
+
     use_google_sheet, connection_name, worksheet = bookmark_sheet_settings()
     if use_google_sheet:
         try:
@@ -1019,12 +1052,15 @@ def write_bookmarks(frame: pd.DataFrame) -> bool:
                 worksheet=worksheet,
                 data=normalized,
             )
+            st.session_state.bookmark_storage_error = ""
             return True
         except Exception:
-            st.error(
-                "즐겨찾기 Google Sheet에 저장하지 못했습니다. "
-                "입력 내용은 반영되지 않았으니 잠시 후 다시 시도해 주세요."
+            message = (
+                "즐겨찾기 저장소에 연결하지 못해 변경 내용을 저장하지 못했어요. "
+                "장소 찾기와 상세정보는 계속 이용할 수 있습니다. 잠시 후 다시 시도해 주세요."
             )
+            st.session_state.bookmark_storage_error = message
+            st.error(message, icon="⚠️")
             return False
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -1143,10 +1179,13 @@ def initialize_state() -> None:
         "bookmark_view_mode": "갤러리 보기",
         "bookmark_category_filter": "전체",
         "navigation_epoch": 0,
+        "bookmark_storage_error": "",
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+    if "_demo_bookmarks" not in st.session_state:
+        st.session_state._demo_bookmarks = empty_bookmarks()
     if st.session_state.sort_order in {"기본순", "장소명순 (가나다)"}:
         st.session_state.sort_order = "가나다순"
     if st.session_state.get("_sort_order_widget") in {
@@ -2396,7 +2435,13 @@ def render_bookmarks(places: pd.DataFrame) -> None:
     )
     normalized = st.session_state.nickname.strip()
     google_sheet_enabled, _, _ = bookmark_sheet_settings()
-    if not google_sheet_enabled:
+    if demo_mode_enabled():
+        st.info(
+            "데모 모드에서는 즐겨찾기·카테고리·메모가 현재 브라우저 세션에만 저장돼요. "
+            "새로 접속하면 초기화됩니다.",
+            icon="🎬",
+        )
+    elif not google_sheet_enabled:
         st.warning(
             "현재 즐겨찾기는 로컬 개발용 CSV에 저장됩니다. "
             "배포 전 Google Sheet Secrets 설정을 완료해 주세요."
@@ -2652,6 +2697,8 @@ def main() -> None:
     initialize_state()
     places = get_places()
     hero()
+    if demo_mode_enabled() and st.session_state.page != "home":
+        st.caption(f"🎬 데모 모드 · 사진이 있는 제주 장소 {len(places)}곳")
     if st.session_state.pop("logout_flash", False):
         st.toast("로그아웃했어요. 다음에 또 만나요!", icon="👋")
     show_bookmark_flash()
