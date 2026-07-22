@@ -35,6 +35,7 @@ FAVICON_PATH = ASSETS_DIR / "favicon.png"
 JUA_FONT_PATH = ASSETS_DIR / "social-carousel-v2" / "source" / "Jua-Regular.ttf"
 PLACES_PATH = DATA_DIR / "jeju-irang.csv"
 DEMO_PLACES_PATH = DATA_DIR / "demo_data.csv"
+RECOMMENDATION_RULES_PATH = DATA_DIR / "rules.csv"
 BOOKMARKS_PATH = DATA_DIR / "bookmarks.csv"
 BOOKMARK_BACKUP_DIR = DATA_DIR / "backups"
 BOOKMARK_SHEET_CONNECTION_NAME = "bookmarks"
@@ -53,6 +54,7 @@ BOOKMARK_COLUMNS = [
 ]
 PASSWORD_ITERATIONS = 200_000
 CARD_DESCRIPTION_LENGTH = 50
+SEARCH_CARD_DESCRIPTION_LENGTH = 40
 
 GOOGLE_FORM_ENV_KEYS = {
     "new_place_url": "GOOGLE_FORM_NEW_PLACE_URL",
@@ -149,7 +151,7 @@ st.markdown(
     [data-testid="stAppViewBlockContainer"],
     .block-container {
         max-width: 1320px;
-        padding-top: 3.5rem;
+        padding-top: 2.75rem;
         padding-bottom: 4rem;
     }
     [data-testid="stSidebar"] {
@@ -525,19 +527,15 @@ st.markdown(
         cursor:pointer !important;
     }
     .card-media {
-        width:100%; height:210px; overflow:hidden;
+        position:relative; width:100%; height:210px; overflow:hidden;
         border-radius:20px 20px 0 0; background:linear-gradient(135deg,var(--jeju-sky-soft),var(--jeju-mint-soft));
     }
-    .card-media.image-unavailable {background:#f4f0ea;}
-    .card-media img, .card-media .remote-place-image {
-        display:block; width:100%; height:100%; object-fit:cover; border:0;
-    }
-    .remote-place-image {
-        background-color:#f4f0ea; background-position:center;
-        background-repeat:no-repeat; background-size:cover;
+    .card-media img {
+        position:absolute; inset:0; z-index:1; display:block;
+        width:100%; height:100%; object-fit:cover; border:0;
     }
     .card-media-placeholder {
-        display:grid; place-items:center; width:100%; height:100%;
+        position:absolute; inset:0; display:grid; place-items:center; width:100%; height:100%;
         color:var(--jeju-brown); font-size:3rem;
     }
     div[data-testid="stVerticalBlock"][class*="st-key-place_card_"],
@@ -591,15 +589,20 @@ st.markdown(
     .info-label {color: var(--jeju-muted); font-size: .84rem; margin-bottom: .22rem;}
     .info-value {color: var(--text-color); white-space: pre-wrap; overflow-wrap: anywhere;}
     .st-key-detail_photo [data-testid="stImage"] img,
-    .detail-photo-frame img, .detail-photo-frame .remote-place-image {
+    .detail-photo-frame img {
         width:100%; height:360px; aspect-ratio:auto; object-fit:cover; border-radius:24px;
         box-shadow:0 12px 30px rgba(73,56,47,.12);
     }
     .detail-photo-frame {
-        width:100%; height:360px; overflow:hidden; border-radius:24px;
+        position:relative; width:100%; height:360px; overflow:hidden; border-radius:24px;
         background:#f4f0ea; box-shadow:0 12px 30px rgba(73,56,47,.10);
     }
-    .detail-photo-frame img, .detail-photo-frame .remote-place-image {display:block; border:0;}
+    .detail-photo-frame img {
+        position:absolute; inset:0; z-index:1; display:block; border:0;
+    }
+    .detail-photo-frame .detail-photo-placeholder {
+        position:absolute; inset:0; height:100%; border-radius:0; box-shadow:none;
+    }
     .detail-photo-frame.image-unavailable + .photo-credit {display:none;}
     .photo-credit {
         margin:.45rem .25rem 0; color:var(--jeju-muted);
@@ -625,7 +628,7 @@ st.markdown(
         font-weight:850 !important;
     }
     .st-key-detail_summary [data-testid="stHorizontalBlock"] {
-        max-width:21rem; gap:.55rem !important; margin-top:.9rem !important;
+        max-width:21rem; gap:.55rem !important; margin-top:.65rem !important;
     }
     .st-key-detail_website_link a,
     .st-key-detail_reservation_link a,
@@ -758,7 +761,7 @@ st.markdown(
     div[role="radiogroup"] {background:transparent !important; border:0; border-radius:16px; padding:.35rem .7rem;}
     @media (max-width: 768px) {
         [data-testid="stAppViewBlockContainer"],
-        .block-container {padding-top:3.5rem;}
+        .block-container {padding-top:2.75rem;}
         .home-hero {padding: 2rem 1.35rem 7rem;}
         .home-hero::after {right: 5%; bottom: 5%; font-size: 2.5rem;}
         .brand p {display: none;}
@@ -846,8 +849,7 @@ st.markdown(
         div[class*="st-key-place_name_"] button p,
         div[class*="st-key-favorite_name_"] button p {font-size:1.3rem !important;}
         .st-key-detail_photo [data-testid="stImage"] img,
-        .detail-photo-frame, .detail-photo-frame img,
-        .detail-photo-frame .remote-place-image, .detail-photo-placeholder {height:240px;}
+        .detail-photo-frame, .detail-photo-frame img, .detail-photo-placeholder {height:240px;}
         .detail-summary-card {padding:1.25rem;}
         .detail-actions {max-width:none; grid-template-columns:repeat(2,minmax(0,1fr));}
         .detail-core-row {grid-template-columns:1.7rem 5.2rem minmax(0,1fr);}
@@ -870,18 +872,27 @@ def clean_text(value: object, fallback: str = "정보 없음") -> str:
     return text if text else fallback
 
 
-def card_description(value: object, fallback: str) -> str:
-    """Return a card description of at most 50 characters, including spaces."""
+def card_description(
+    value: object,
+    fallback: str,
+    max_characters: int = CARD_DESCRIPTION_LENGTH,
+) -> str:
+    """Return a normalized card description truncated after the requested length."""
     text = " ".join(clean_text(value, fallback).split())
-    if len(text) <= CARD_DESCRIPTION_LENGTH:
+    if len(text) <= max_characters:
         return text
-    return f"{text[: CARD_DESCRIPTION_LENGTH - 1]}…"
+    return f"{text[:max_characters]}…"
 
 
-def card_description_markup(value: object, fallback: str) -> str:
-    """Reserve the same visual space as a 50-character Korean description."""
-    text = card_description(value, fallback)
-    invisible_fill = "가" * max(0, CARD_DESCRIPTION_LENGTH - len(text))
+def card_description_markup(
+    value: object,
+    fallback: str,
+    max_characters: int = CARD_DESCRIPTION_LENGTH,
+) -> str:
+    """Reserve consistent card space while limiting the visible description."""
+    text = card_description(value, fallback, max_characters)
+    visible_length = min(len(text.rstrip("…")), max_characters)
+    invisible_fill = "가" * max(0, max_characters - visible_length)
     return (
         f"{escape(text)}"
         f'<span class="card-description-fill" aria-hidden="true">{invisible_fill}</span>'
@@ -928,27 +939,14 @@ def demo_mode_enabled() -> bool:
     return configured_demo_mode_enabled()
 
 
-def is_local_request() -> bool:
-    """Detect localhost without exposing developer controls on the deployed app."""
-    try:
-        host_header = str(st.context.headers.get("Host", "")).strip().lower()
-    except (AttributeError, RuntimeError):
-        host_header = ""
-    if host_header.startswith("[::1]"):
-        return True
-    host = host_header.rsplit(":", 1)[0] if host_header.count(":") == 1 else host_header
-    return host in {"localhost", "127.0.0.1", "::1"} or host.endswith(".localhost")
-
-
-def render_local_demo_control() -> None:
-    if not is_local_request():
-        return
+def render_demo_control() -> None:
+    """Show the session-only demo switch in local and deployed environments."""
     configured_value = configured_demo_mode_enabled()
     previous_value = st.session_state.get("_local_demo_mode_override")
     initial_value = previous_value if isinstance(previous_value, bool) else configured_value
     with st.container(key="local_demo_control"):
         selected_value = st.toggle(
-            "데모 40곳",
+            "데모",
             value=initial_value,
             key="_local_demo_mode_toggle",
         )
@@ -1030,6 +1028,51 @@ def get_places() -> pd.DataFrame:
         st.error(f"장소 데이터 파일을 찾을 수 없습니다: {places_path}")
         st.stop()
     return load_places(places_path, places_path.stat().st_mtime)
+
+
+def default_recommendation_rules() -> pd.DataFrame:
+    """Return safe built-in rules when data/rules.csv cannot be read."""
+    return pd.DataFrame(
+        [
+            {"column": "category", "match_type": "exact", "weight": 4, "value": ""},
+            {"column": "region_group", "match_type": "exact", "weight": 2, "value": ""},
+            {"column": "space_type", "match_type": "exact", "weight": 1, "value": ""},
+            {"column": "photo_url", "match_type": "nonempty", "weight": 1, "value": ""},
+            {"column": "place_name", "match_type": "tiebreak_asc", "weight": 0, "value": ""},
+            {"column": "", "match_type": "limit", "weight": 0, "value": 3},
+        ]
+    )
+
+
+@st.cache_data(show_spinner=False)
+def load_recommendation_rules(path: Path, modified_at: float) -> pd.DataFrame:
+    del modified_at  # cache invalidation key
+    rules = pd.read_csv(path, dtype="string")
+    rules.columns = rules.columns.str.strip()
+    required_columns = {"column", "match_type", "weight", "value", "enabled"}
+    missing_columns = required_columns.difference(rules.columns)
+    if missing_columns:
+        raise ValueError(f"누락된 컬럼: {', '.join(sorted(missing_columns))}")
+    rules = rules[rules["enabled"].map(parse_bool).fillna(False)].copy()
+    rules["column"] = rules["column"].fillna("").str.strip()
+    rules["match_type"] = rules["match_type"].fillna("").str.strip()
+    rules["weight"] = pd.to_numeric(rules["weight"], errors="coerce").fillna(0)
+    return rules
+
+
+def get_recommendation_rules() -> pd.DataFrame:
+    """Load editable recommendation rules and fall back without breaking details."""
+    if not RECOMMENDATION_RULES_PATH.exists():
+        st.warning("추천 규칙 파일을 찾지 못해 기본 추천 규칙을 사용하고 있어요.", icon="⚠️")
+        return default_recommendation_rules()
+    try:
+        return load_recommendation_rules(
+            RECOMMENDATION_RULES_PATH,
+            RECOMMENDATION_RULES_PATH.stat().st_mtime,
+        )
+    except (OSError, ValueError, pd.errors.ParserError, pd.errors.EmptyDataError):
+        st.warning("추천 규칙을 읽지 못해 기본 추천 규칙을 사용하고 있어요.", icon="⚠️")
+        return default_recommendation_rules()
 
 
 def empty_bookmarks() -> pd.DataFrame:
@@ -1423,13 +1466,24 @@ def display_tags(place: pd.Series, include_region: bool = True) -> str:
 
 
 def render_card_media(photo_url: str, placeholder: str) -> None:
+    fallback = f'<div class="card-media-placeholder">{escape(placeholder)}</div>'
     if photo_url:
+        media_id = "card-photo-" + hashlib.sha256(
+            f"{photo_url}|{placeholder}".encode("utf-8")
+        ).hexdigest()[:16]
         content = (
-            '<div class="remote-place-image" role="img" aria-label="" '
-            f'style="background-image:url(&quot;{escape(photo_url, quote=True)}&quot;)"></div>'
+            fallback
+            + f'<img id="{media_id}" src="{escape(photo_url, quote=True)}" alt="">'
+            + "<script>(()=>{"
+            + f"const image=document.getElementById('{media_id}');"
+            + "if(!image)return;"
+            + "const showFallback=()=>image.remove();"
+            + "image.addEventListener('error',showFallback,{once:true});"
+            + "if(image.complete&&image.naturalWidth===0)showFallback();"
+            + "})();</script>"
         )
     else:
-        content = f'<div class="card-media-placeholder">{escape(placeholder)}</div>'
+        content = fallback
     st.html(
         f'<div class="card-media">{content}</div>',
         unsafe_allow_javascript=True,
@@ -1487,14 +1541,21 @@ def format_distance(distance_km: object) -> str:
     return f"약 {distance:.1f}km"
 
 
-def render_place_grid(frame: pd.DataFrame, key_prefix: str, columns: int = 3) -> None:
+def render_place_grid(
+    frame: pd.DataFrame,
+    key_prefix: str,
+    columns: int = 3,
+    description_length: int = CARD_DESCRIPTION_LENGTH,
+) -> None:
     saved_place_ids = current_user_saved_place_ids()
     for start in range(0, len(frame), columns):
         row_columns = st.columns(columns)
         for offset, (_, place) in enumerate(frame.iloc[start : start + columns].iterrows()):
             with row_columns[offset]:
                 description_markup = card_description_markup(
-                    place.get("description"), "아이와 함께 둘러볼 제주 장소"
+                    place.get("description"),
+                    "아이와 함께 둘러볼 제주 장소",
+                    description_length,
                 )
                 location = " · ".join(
                     part
@@ -1970,7 +2031,11 @@ def render_list(places: pd.DataFrame) -> None:
     elif st.session_state.view_mode == "지도 보기":
         render_place_map(filtered)
     else:
-        render_place_grid(filtered, "list_place")
+        render_place_grid(
+            filtered,
+            "list_place",
+            description_length=SEARCH_CARD_DESCRIPTION_LENGTH,
+        )
     render_quiet_proposal_link(
         "＋ 장소 제안하기",
         get_google_form_settings().get("new_place_url", ""),
@@ -2205,21 +2270,43 @@ def detail_recommendations(
     if candidates.empty:
         return candidates
 
+    rules = get_recommendation_rules()
     candidates["_recommend_score"] = 0
-    for column, weight in (("category", 4), ("region_group", 2), ("space_type", 1)):
+    exact_rules = rules[rules["match_type"].eq("exact")]
+    for rule in exact_rules.itertuples(index=False):
+        column = str(rule.column)
+        weight = float(rule.weight)
         current_value = clean_text(current_place.get(column), "")
         if current_value and column in candidates.columns:
             candidates["_recommend_score"] += (
                 candidates[column].fillna("").astype(str).eq(current_value).astype(int) * weight
             )
-    if "photo_url" in candidates.columns:
-        candidates["_recommend_score"] += (
-            candidates["photo_url"].fillna("").astype(str).str.strip().ne("").astype(int)
-        )
+    for rule in rules[rules["match_type"].eq("nonempty")].itertuples(index=False):
+        column = str(rule.column)
+        if column in candidates.columns:
+            candidates["_recommend_score"] += (
+                candidates[column].fillna("").astype(str).str.strip().ne("").astype(int)
+                * float(rule.weight)
+            )
+
+    limit_rules = rules[rules["match_type"].eq("limit")]
+    if not limit_rules.empty:
+        configured_limit = pd.to_numeric(limit_rules.iloc[0]["value"], errors="coerce")
+        if pd.notna(configured_limit) and int(configured_limit) > 0:
+            limit = int(configured_limit)
+
+    tiebreak_rules = rules[rules["match_type"].eq("tiebreak_asc")]
+    tiebreak_column = (
+        str(tiebreak_rules.iloc[0]["column"])
+        if not tiebreak_rules.empty
+        else "place_name"
+    )
+    if not tiebreak_column or tiebreak_column not in candidates.columns:
+        tiebreak_column = "place_name"
 
     return (
         candidates.sort_values(
-            ["_recommend_score", "place_name"],
+            ["_recommend_score", tiebreak_column],
             ascending=[False, True],
             kind="stable",
         )
@@ -2257,6 +2344,9 @@ def render_detail(places: pd.DataFrame) -> None:
     photo_url = clean_text(place.get("photo_url"), "")
     with st.container(key="detail_photo"):
         if photo_url:
+            detail_photo_id = "detail-photo-" + hashlib.sha256(
+                f"{place_id}|{photo_url}".encode("utf-8")
+            ).hexdigest()[:16]
             photo_credit = (
                 '<div class="photo-credit">사진 제공: 한국관광공사 관광사진갤러리</div>'
                 if "visitkorea.or.kr" in photo_url.lower()
@@ -2264,8 +2354,15 @@ def render_detail(places: pd.DataFrame) -> None:
             )
             st.html(
                 '<div class="detail-photo-frame">'
-                '<div class="remote-place-image" role="img" aria-label="" '
-                f'style="background-image:url(&quot;{escape(photo_url, quote=True)}&quot;)"></div>'
+                '<div class="detail-photo-placeholder">NO IMAGE AVAILABLE</div>'
+                f'<img id="{detail_photo_id}" src="{escape(photo_url, quote=True)}" alt="">'
+                '<script>(()=>{'
+                f"const image=document.getElementById('{detail_photo_id}');"
+                'if(!image)return;'
+                'const showFallback=()=>{image.parentElement.classList.add("image-unavailable");image.remove();};'
+                'image.addEventListener("error",showFallback,{once:true});'
+                'if(image.complete&&image.naturalWidth===0)showFallback();'
+                '})();</script>'
                 f"</div>{photo_credit}",
                 unsafe_allow_javascript=True,
             )
@@ -2284,7 +2381,15 @@ def render_detail(places: pd.DataFrame) -> None:
     )
     if resident_discount_value == "정보 없음":
         resident_discount_value = "도민 할인 정보 없음"
-    admission_display = f"{admission_value} (🍊 {resident_discount_value})"
+    is_free_admission = (
+        pd.notna(place.get("has_admission_fee"))
+        and not bool(place.get("has_admission_fee"))
+    )
+    admission_display = (
+        admission_value
+        if is_free_admission
+        else f"{admission_value} (🍊 {resident_discount_value})"
+    )
     age_value = (
         "연령제한 없음" if pd.notna(place.get("has_age_limit")) and not bool(place.get("has_age_limit"))
         else clean_text(place.get("age_limit_detail"), "연령제한 있음")
@@ -2316,12 +2421,14 @@ def render_detail(places: pd.DataFrame) -> None:
                     key="detail_website_link",
                     use_container_width=True,
                 )
-            elif st.button(
-                "🌐 홈페이지",
-                key="detail_website_missing",
-                use_container_width=True,
-            ):
-                st.toast("등록된 홈페이지 링크가 없어요.", icon="ℹ️")
+            else:
+                st.button(
+                    "🌐 홈페이지",
+                    key="detail_website_missing",
+                    use_container_width=True,
+                    disabled=True,
+                    help="등록된 홈페이지 링크가 없어요.",
+                )
         with reservation_col:
             if reservation.startswith(("http://", "https://")):
                 st.link_button(
@@ -2330,12 +2437,14 @@ def render_detail(places: pd.DataFrame) -> None:
                     key="detail_reservation_link",
                     use_container_width=True,
                 )
-            elif st.button(
-                "🎟 예약하기",
-                key="detail_reservation_missing",
-                use_container_width=True,
-            ):
-                st.toast("등록된 예약 링크가 없어요.", icon="ℹ️")
+            else:
+                st.button(
+                    "🎟 예약하기",
+                    key="detail_reservation_missing",
+                    use_container_width=True,
+                    disabled=True,
+                    help="등록된 예약 링크가 없어요.",
+                )
         st.markdown(f"<div>{rows}</div>", unsafe_allow_html=True)
 
     saved = current_place_is_saved(place_id)
@@ -2793,11 +2902,11 @@ def show_bookmark_flash() -> None:
 
 def main() -> None:
     initialize_state()
-    render_local_demo_control()
+    render_demo_control()
     places = get_places()
     hero()
     if demo_mode_enabled() and st.session_state.page != "home":
-        st.caption(f"🎬 데모 모드 · 사진이 있는 제주 장소 {len(places)}곳")
+        st.caption("🎬 데모 모드")
     if st.session_state.pop("logout_flash", False):
         st.toast("로그아웃했어요. 다음에 또 만나요!", icon="👋")
     show_bookmark_flash()

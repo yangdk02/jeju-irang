@@ -87,6 +87,11 @@
 
 - `data/jeju-irang.csv`: 서비스에서 사용하는 전체 장소 데이터
 - `data/demo_data.csv`: 주요 기능을 확인할 수 있도록 선별한 데모 데이터
+- `data/rules.csv`: 상세 페이지의 다음 일정 추천 점수와 노출 개수를 정하는 규칙
+
+로컬 실행과 배포된 앱 모두 화면 왼쪽 아래의 **데모** 토글로 데모 모드를
+켜고 끌 수 있습니다. 선택은 방문자의 현재 브라우저 세션에만 적용되며 다른
+사용자의 화면이나 전체 장소 데이터에는 영향을 주지 않습니다.
 
 | 정보 | 주요 컬럼 |
 |---|---|
@@ -96,6 +101,13 @@
 | 이용조건 | `has_admission_fee`, `admission_fee_detail`, `has_age_limit`, `age_limit_detail` |
 | 가족 편의정보 | `nursing_room`, `stroller_rental`, `diaper_changing_table`, `space_type`, `resident_discount` |
 | 링크와 이미지 | `website_url`, `reservation_url`, `photo_url` |
+
+### 다음 일정 추천 규칙
+
+상세 페이지의 **다음 일정으로 여기는 어떠세요?** 영역은 `data/rules.csv`를
+사용합니다. 같은 시설유형·지역·공간에 가중치를 주고 사진이 있는 장소를 우선한
+뒤, 동점이면 장소명을 가나다순으로 정렬해 최대 3곳을 표시합니다. 가중치와 노출
+개수는 CSV에서 변경할 수 있습니다.
 
 ## 데이터 출처와 이용 안내
 

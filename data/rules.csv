@@ -1,0 +1,7 @@
+rule_id,rule_name,column,match_type,weight,value,enabled,description
+REC001,같은 시설유형 우선,category,exact,4,,TRUE,현재 장소와 시설유형이 같은 장소에 4점을 더합니다.
+REC002,같은 지역 우선,region_group,exact,2,,TRUE,현재 장소와 지역 그룹이 같은 장소에 2점을 더합니다.
+REC003,같은 공간 우선,space_type,exact,1,,TRUE,현재 장소와 실내외 구분이 같은 장소에 1점을 더합니다.
+REC004,사진 있는 장소 우선,photo_url,nonempty,1,,TRUE,대표 사진이 있는 장소에 1점을 더합니다.
+REC005,동점 장소명 정렬,place_name,tiebreak_asc,0,,TRUE,추천 점수가 같으면 장소명을 가나다순으로 정렬합니다.
+REC006,추천 노출 개수,,limit,0,3,TRUE,상세 페이지에 추천 장소를 3곳까지 표시합니다.
