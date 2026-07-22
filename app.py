@@ -420,12 +420,36 @@ st.markdown(
         border:0 !important;
         background:linear-gradient(90deg, var(--jeju-orange), #ffad28) !important;
         color:#fff !important; white-space:nowrap !important;
-        font-size:.9rem !important; font-weight:680 !important;
+        font-family:'Pretendard',sans-serif !important;
+        font-size:1.05rem !important; font-weight:650 !important;
         box-shadow:0 6px 14px rgba(255,159,28,.22) !important;
+    }
+    .st-key-header_logout button p {
+        font-family:'Pretendard',sans-serif !important;
+        font-size:inherit !important; font-weight:inherit !important;
     }
     .st-key-header_logout button:hover {
         color:#fff !important; transform:translateY(-1px) !important;
         box-shadow:0 9px 18px rgba(255,159,28,.28) !important;
+    }
+    .st-key-local_demo_control {
+        position:fixed !important; left:.7rem !important; bottom:.7rem !important;
+        z-index:9999 !important; width:auto !important; min-width:0 !important;
+        padding:.32rem .58rem !important; border-radius:999px !important;
+        background:rgba(255,253,248,.94) !important;
+        border:1px solid var(--jeju-orange-soft) !important;
+        box-shadow:0 5px 15px rgba(73,56,47,.13) !important;
+        backdrop-filter:blur(8px);
+    }
+    .st-key-local_demo_control [data-testid="stVerticalBlock"] {
+        width:auto !important; min-width:0 !important; gap:0 !important;
+    }
+    .st-key-local_demo_control [data-testid="stCheckbox"] {
+        width:auto !important; min-width:0 !important; margin:0 !important;
+    }
+    .st-key-local_demo_control [data-testid="stWidgetLabel"] p {
+        font-size:.72rem !important; font-weight:650 !important;
+        color:var(--jeju-brown) !important; white-space:nowrap !important;
     }
     .result-heading {display: flex; align-items: center; gap: .7rem; margin: 1.35rem 0 .7rem; font-size: 1.55rem; font-weight: 760;}
     .search-result-heading, .favorites-result-heading {font-weight:850 !important;}
@@ -504,7 +528,14 @@ st.markdown(
         width:100%; height:210px; overflow:hidden;
         border-radius:20px 20px 0 0; background:linear-gradient(135deg,var(--jeju-sky-soft),var(--jeju-mint-soft));
     }
-    .card-media img {display:block; width:100%; height:100%; object-fit:cover;}
+    .card-media.image-unavailable {background:#f4f0ea;}
+    .card-media img, .card-media .remote-place-image {
+        display:block; width:100%; height:100%; object-fit:cover; border:0;
+    }
+    .remote-place-image {
+        background-color:#f4f0ea; background-position:center;
+        background-repeat:no-repeat; background-size:cover;
+    }
     .card-media-placeholder {
         display:grid; place-items:center; width:100%; height:100%;
         color:var(--jeju-brown); font-size:3rem;
@@ -559,10 +590,17 @@ st.markdown(
     .guide-step-card {background:var(--jeju-surface) !important;}
     .info-label {color: var(--jeju-muted); font-size: .84rem; margin-bottom: .22rem;}
     .info-value {color: var(--text-color); white-space: pre-wrap; overflow-wrap: anywhere;}
-    .st-key-detail_photo [data-testid="stImage"] img {
+    .st-key-detail_photo [data-testid="stImage"] img,
+    .detail-photo-frame img, .detail-photo-frame .remote-place-image {
         width:100%; height:360px; aspect-ratio:auto; object-fit:cover; border-radius:24px;
         box-shadow:0 12px 30px rgba(73,56,47,.12);
     }
+    .detail-photo-frame {
+        width:100%; height:360px; overflow:hidden; border-radius:24px;
+        background:#f4f0ea; box-shadow:0 12px 30px rgba(73,56,47,.10);
+    }
+    .detail-photo-frame img, .detail-photo-frame .remote-place-image {display:block; border:0;}
+    .detail-photo-frame.image-unavailable + .photo-credit {display:none;}
     .photo-credit {
         margin:.45rem .25rem 0; color:var(--jeju-muted);
         font-family:'Pretendard',sans-serif; font-size:.76rem; text-align:right;
@@ -587,14 +625,25 @@ st.markdown(
         font-weight:850 !important;
     }
     .st-key-detail_summary [data-testid="stHorizontalBlock"] {
-        max-width:21rem; gap:.55rem !important;
+        max-width:21rem; gap:.55rem !important; margin-top:.9rem !important;
     }
-    .st-key-detail_website_link a, .st-key-detail_reservation_link a {
-        width:100% !important; justify-content:center !important; min-height:2.65rem !important;
-        border:0 !important; box-shadow:0 4px 12px rgba(73,56,47,.08) !important;
+    .st-key-detail_website_link a,
+    .st-key-detail_reservation_link a,
+    .st-key-detail_website_missing button,
+    .st-key-detail_reservation_missing button {
+        width:100% !important; min-height:2.65rem !important;
+        padding:.5rem .75rem !important; justify-content:center !important;
+        border:0 !important; border-radius:999px !important;
+        font-family:'Pretendard',sans-serif !important;
+        font-size:.86rem !important; font-weight:800 !important;
+        box-shadow:0 4px 12px rgba(73,56,47,.08) !important;
     }
     .st-key-detail_website_link a {background:var(--jeju-yellow-soft) !important;}
     .st-key-detail_reservation_link a {background:var(--jeju-pink-soft) !important;}
+    .st-key-detail_website_missing button,
+    .st-key-detail_reservation_missing button {
+        background:#eee9e4 !important; color:#aaa099 !important; box-shadow:none !important;
+    }
     .detail-actions {
         display:grid; grid-template-columns:repeat(2,minmax(8rem,1fr));
         gap:.55rem; width:100%; max-width:21rem; margin:.25rem 0 1rem;
@@ -759,7 +808,8 @@ st.markdown(
         }
         .st-key-header_logout button {
             height:3.2rem !important; min-height:3.2rem !important;
-            font-size:clamp(.84rem, 3.4vw, .94rem) !important;
+            font-size:clamp(.9rem, 3.8vw, 1rem) !important;
+            font-weight:650 !important;
             line-height:1 !important; white-space:nowrap !important;
             word-break:keep-all !important; overflow-wrap:normal !important;
         }
@@ -795,7 +845,9 @@ st.markdown(
         div[class*="st-key-favorite_name_"] button,
         div[class*="st-key-place_name_"] button p,
         div[class*="st-key-favorite_name_"] button p {font-size:1.3rem !important;}
-        .st-key-detail_photo [data-testid="stImage"] img, .detail-photo-placeholder {height:240px;}
+        .st-key-detail_photo [data-testid="stImage"] img,
+        .detail-photo-frame, .detail-photo-frame img,
+        .detail-photo-frame .remote-place-image, .detail-photo-placeholder {height:240px;}
         .detail-summary-card {padding:1.25rem;}
         .detail-actions {max-width:none; grid-template-columns:repeat(2,minmax(0,1fr));}
         .detail-core-row {grid-template-columns:1.7rem 5.2rem minmax(0,1fr);}
@@ -810,7 +862,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
 
 def clean_text(value: object, fallback: str = "정보 없음") -> str:
     if pd.isna(value):
@@ -852,20 +903,60 @@ def get_google_form_settings() -> dict[str, str]:
     return settings
 
 
-def demo_mode_enabled() -> bool:
-    """Return whether the app should use the local, dependency-free demo data."""
+def configured_demo_mode_enabled() -> bool:
+    """Return the demo-mode value configured by Secrets or an environment variable."""
     try:
         demo_settings = st.secrets.get("demo", {})
     except (FileNotFoundError, KeyError, AttributeError):
         demo_settings = {}
+    env_value = os.getenv(DEMO_MODE_ENV_KEY)
     raw_value = (
-        demo_settings.get("enabled", False)
-        if demo_settings
-        else os.getenv(DEMO_MODE_ENV_KEY, "false")
+        env_value
+        if env_value is not None
+        else demo_settings.get("enabled", False) if demo_settings else False
     )
     if isinstance(raw_value, bool):
         return raw_value
     return str(raw_value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def demo_mode_enabled() -> bool:
+    """Return the effective demo mode, including a localhost sidebar override."""
+    local_override = st.session_state.get("_local_demo_mode_override")
+    if isinstance(local_override, bool):
+        return local_override
+    return configured_demo_mode_enabled()
+
+
+def is_local_request() -> bool:
+    """Detect localhost without exposing developer controls on the deployed app."""
+    try:
+        host_header = str(st.context.headers.get("Host", "")).strip().lower()
+    except (AttributeError, RuntimeError):
+        host_header = ""
+    if host_header.startswith("[::1]"):
+        return True
+    host = host_header.rsplit(":", 1)[0] if host_header.count(":") == 1 else host_header
+    return host in {"localhost", "127.0.0.1", "::1"} or host.endswith(".localhost")
+
+
+def render_local_demo_control() -> None:
+    if not is_local_request():
+        return
+    configured_value = configured_demo_mode_enabled()
+    previous_value = st.session_state.get("_local_demo_mode_override")
+    initial_value = previous_value if isinstance(previous_value, bool) else configured_value
+    with st.container(key="local_demo_control"):
+        selected_value = st.toggle(
+            "데모 40곳",
+            value=initial_value,
+            key="_local_demo_mode_toggle",
+        )
+    st.session_state._local_demo_mode_override = bool(selected_value)
+    if isinstance(previous_value, bool) and previous_value != bool(selected_value):
+        reset_filters()
+        st.session_state.selected_place_id = None
+        st.rerun()
 
 
 def get_place_update_form_url(place: pd.Series) -> str:
@@ -1180,6 +1271,7 @@ def initialize_state() -> None:
         "bookmark_category_filter": "전체",
         "navigation_epoch": 0,
         "bookmark_storage_error": "",
+        "_local_demo_mode_override": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -1333,13 +1425,14 @@ def display_tags(place: pd.Series, include_region: bool = True) -> str:
 def render_card_media(photo_url: str, placeholder: str) -> None:
     if photo_url:
         content = (
-            f'<img src="{escape(photo_url, quote=True)}" alt="" loading="lazy">'
+            '<div class="remote-place-image" role="img" aria-label="" '
+            f'style="background-image:url(&quot;{escape(photo_url, quote=True)}&quot;)"></div>'
         )
     else:
         content = f'<div class="card-media-placeholder">{escape(placeholder)}</div>'
-    st.markdown(
+    st.html(
         f'<div class="card-media">{content}</div>',
-        unsafe_allow_html=True,
+        unsafe_allow_javascript=True,
     )
 
 
@@ -2164,12 +2257,18 @@ def render_detail(places: pd.DataFrame) -> None:
     photo_url = clean_text(place.get("photo_url"), "")
     with st.container(key="detail_photo"):
         if photo_url:
-            st.image(photo_url, use_container_width=True)
-            if "visitkorea.or.kr" in photo_url.lower():
-                st.markdown(
-                    '<div class="photo-credit">사진 제공: 한국관광공사 관광사진갤러리</div>',
-                    unsafe_allow_html=True,
-                )
+            photo_credit = (
+                '<div class="photo-credit">사진 제공: 한국관광공사 관광사진갤러리</div>'
+                if "visitkorea.or.kr" in photo_url.lower()
+                else ""
+            )
+            st.html(
+                '<div class="detail-photo-frame">'
+                '<div class="remote-place-image" role="img" aria-label="" '
+                f'style="background-image:url(&quot;{escape(photo_url, quote=True)}&quot;)"></div>'
+                f"</div>{photo_credit}",
+                unsafe_allow_javascript=True,
+            )
         else:
             st.markdown('<div class="detail-photo-placeholder">NO IMAGE AVAILABLE</div>', unsafe_allow_html=True)
 
@@ -2178,6 +2277,14 @@ def render_detail(places: pd.DataFrame) -> None:
         "무료" if pd.notna(place.get("has_admission_fee")) and not bool(place.get("has_admission_fee"))
         else clean_text(place.get("admission_fee_detail"), "입장료 있음")
     )
+    resident_discount_value = yes_no_unknown(
+        place.get("resident_discount"),
+        yes="도민 할인 있음",
+        no="도민 할인 없음",
+    )
+    if resident_discount_value == "정보 없음":
+        resident_discount_value = "도민 할인 정보 없음"
+    admission_display = f"{admission_value} (🍊 {resident_discount_value})"
     age_value = (
         "연령제한 없음" if pd.notna(place.get("has_age_limit")) and not bool(place.get("has_age_limit"))
         else clean_text(place.get("age_limit_detail"), "연령제한 있음")
@@ -2186,18 +2293,9 @@ def render_detail(places: pd.DataFrame) -> None:
     detail_rows = [
         detail_row("📍", "위치", place.get("road_address")),
         detail_row("🕘", "운영시간", place.get("opening_hours")),
-        detail_row("🍊", "이용 요금", admission_value),
+        detail_row("₩", "이용 요금", admission_display),
         detail_row("☺", "연령제한", age_value),
         detail_row(parking_icon, "주차 가능 여부", parking_value),
-        detail_row(
-            "🏷️",
-            "도민 할인",
-            yes_no_unknown(
-                place.get("resident_discount"),
-                yes="도민 할인 가능",
-                no="도민 할인 없음",
-            ),
-        ),
     ]
     rows = "".join(detail_rows)
     website = clean_text(place.get("website_url"), "")
@@ -2695,6 +2793,7 @@ def show_bookmark_flash() -> None:
 
 def main() -> None:
     initialize_state()
+    render_local_demo_control()
     places = get_places()
     hero()
     if demo_mode_enabled() and st.session_state.page != "home":

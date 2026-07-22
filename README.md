@@ -2,6 +2,8 @@
 
 > 아이와 함께 갈 제주 나들이 장소를 우리 가족의 조건에 맞춰 찾아보세요.
 
+### [👉 제주아이랑 바로 이용하기](https://jeju-irang.streamlit.app/)
+
 ![제주아이랑 사용 화면](assets/social-carousel-v2/carousel-preview.png)
 
 ## 제주아이랑은 어떤 서비스인가요?
@@ -68,27 +70,6 @@
 3. 검색 결과에서 장소의 사진과 주요 정보를 확인합니다.
 4. 마음에 드는 장소를 저장하고 카테고리와 메모로 정리합니다.
 
-## 시연용 데모 모드
-
-발표나 네트워크가 불안정한 환경에서는 사진이 확인된 40곳만 담은
-`data/demo_data.csv`를 사용할 수 있습니다. 데모 모드는 장소 데이터를 로컬 CSV에서
-읽고, 즐겨찾기·카테고리·메모를 Google Sheet 대신 현재 브라우저 세션에만 저장합니다.
-
-Streamlit Community Cloud의 **Settings → Secrets** 또는 로컬
-`.streamlit/secrets.toml`에 다음 설정을 추가합니다.
-
-```toml
-[demo]
-enabled = true
-```
-
-데모 모드에서 저장한 즐겨찾기는 브라우저를 새로 접속하면 초기화됩니다. 발표가 끝난
-후 실제 서비스로 되돌리려면 `enabled = false`로 변경합니다.
-
-일반 모드에서 Google Sheet 연결에 실패하더라도 장소 검색·필터·상세정보·지도는 계속
-이용할 수 있습니다. 이 경우 앱에 오류 메시지가 표시되며 즐겨찾기 조회·저장·수정만
-일시적으로 제한됩니다.
-
 ## 현재 제공하는 정보
 
 현재 제주 지역의 관광지, 체험 공간, 박물관, 공연·문화시설 등 **260곳**의 정보를 제공하고 있습니다.
@@ -102,6 +83,32 @@ enabled = true
 - 주차 및 아이 동반 편의시설
 - 홈페이지, 예약 링크, 장소 사진
 
+### 데이터 파일과 주요 컬럼
+
+- `data/jeju-irang.csv`: 서비스에서 사용하는 전체 장소 데이터
+- `data/demo_data.csv`: 주요 기능을 확인할 수 있도록 선별한 데모 데이터
+
+| 정보 | 주요 컬럼 |
+|---|---|
+| 장소 기본정보 | `place_id`, `place_name`, `category`, `description` |
+| 지역과 위치 | `city_name`, `region_group`, `road_address`, `latitude`, `longitude` |
+| 운영정보 | `opening_hours`, `closed_days`, `parking`, `phone` |
+| 이용조건 | `has_admission_fee`, `admission_fee_detail`, `has_age_limit`, `age_limit_detail` |
+| 가족 편의정보 | `nursing_room`, `stroller_rental`, `diaper_changing_table`, `space_type`, `resident_discount` |
+| 링크와 이미지 | `website_url`, `reservation_url`, `photo_url` |
+
+## 데이터 출처와 이용 안내
+
+기본 장소 및 가족 편의정보는 한국문화정보원의 「전국 가족 유아 동반 가능 문화시설 위치 데이터」를 활용했습니다. 장소의 관광정보는 한국관광공사의 「국문 관광정보 서비스_GW」로 보강했으며, 대표 이미지는 「관광사진 정보_GW」를 활용했습니다.
+
+- [한국문화정보원 전국 가족 유아 동반 가능 문화시설 위치 데이터](https://www.data.go.kr/data/15111391/fileData.do)
+- [한국관광공사 국문 관광정보 서비스_GW](https://www.data.go.kr/data/15101578/openapi.do)
+- [한국관광공사 관광사진 정보_GW](https://www.data.go.kr/data/15101914/openapi.do)
+
+한국문화정보원의 원본 파일은 `20221031` 기준이며 업데이트 주기는 `수시(1회성)`입니다. 공공데이터포털에 표시된 수정일과 실제 개별 시설의 최신 정보는 다를 수 있습니다. 따라서 제주아이랑의 정보가 모두 실시간 최신 정보임을 보장하지 않으며, 운영시간·요금·편의시설 등은 방문 전에 해당 장소의 공식 홈페이지나 전화로 다시 확인해 주세요.
+
+관광정보 보강은 현재 `KorService2` 주소를 기준으로 하며, 관련 내용은 [서비스 URL 변경 안내](https://www.data.go.kr/bbs/ntc/selectNotice.do?originId=NOTICE_0000000004082)에서 확인할 수 있습니다.
+
 ## 현재의 한계
 
 - 아직 사용자 이용 데이터를 바탕으로 한 **인기순 정렬 기능은 제공하지 않습니다.**
@@ -113,3 +120,28 @@ enabled = true
 - 부족한 장소 사진과 가족 편의시설 정보를 지속적으로 보강할 예정입니다.
 - 사용자 이용 데이터를 바탕으로 인기 있는 장소를 쉽게 찾을 수 있는 기능을 추가할 계획입니다.
 - 제주에서 시작해 **전국의 아이 동반 장소를 찾을 수 있는 서비스로 확대**할 계획입니다.
+
+## 로컬에서 실행하기
+
+Python 3.11 이상이 설치된 환경에서 아래 명령을 실행합니다.
+
+```bash
+git clone https://github.com/yangdk02/jeju-irang.git
+cd jeju-irang
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
+```
+
+실행 후 브라우저에서 `http://localhost:8501`로 접속합니다. 기본 장소 검색과 상세정보 확인에는 별도의 API 키가 필요하지 않습니다.
+
+### API 키 설정
+
+관광정보와 장소 데이터를 직접 보강하는 관리용 스크립트를 실행할 때만 API 키가 필요합니다. 실제 키는 README에 적거나 저장소에 올리지 않고 Google Apps Script의 **스크립트 속성**에 설정합니다.
+
+```text
+TOUR_API_SERVICE_KEY=
+VWORLD_API_KEY=
+```
+
+- `TOUR_API_SERVICE_KEY`: 공공데이터포털 일반 인증키(Decoding)
+- `VWORLD_API_KEY`: VWorld 공간정보 오픈플랫폼 인증키
