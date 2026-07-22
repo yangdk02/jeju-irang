@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import os
@@ -31,6 +32,7 @@ DATA_DIR = APP_DIR / "data"
 ASSETS_DIR = APP_DIR / "assets"
 WELCOME_IMAGE_PATH = ASSETS_DIR / "welcome-family-jeju.png"
 FAVICON_PATH = ASSETS_DIR / "favicon.png"
+JUA_FONT_PATH = ASSETS_DIR / "social-carousel-v2" / "source" / "Jua-Regular.ttf"
 PLACES_PATH = DATA_DIR / "jeju-irang.csv"
 BOOKMARKS_PATH = DATA_DIR / "bookmarks.csv"
 BOOKMARK_BACKUP_DIR = DATA_DIR / "backups"
@@ -80,6 +82,15 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+if JUA_FONT_PATH.exists():
+    jua_font_data = base64.b64encode(JUA_FONT_PATH.read_bytes()).decode("ascii")
+    st.markdown(
+        "<style>@font-face{font-family:'JejuJua';"
+        f"src:url(data:font/ttf;base64,{jua_font_data}) format('truetype');"
+        "font-weight:400;font-style:normal;font-display:swap;}</style>",
+        unsafe_allow_html=True,
+    )
+
 st.markdown(
     """
     <style>
@@ -118,7 +129,7 @@ st.markdown(
     [data-testid="stApp"] {color:var(--jeju-brown);}
     h1, h2, h3, .page-title, .region-title, .section-title, .result-heading,
     .welcome-copy h2, .brand-name {
-        font-family:'Jua', 'Pretendard', sans-serif !important;
+        font-family:'JejuJua', 'Jua', 'Pretendard', sans-serif !important;
         font-weight:400 !important;
         color:var(--jeju-brown) !important;
     }
@@ -128,7 +139,11 @@ st.markdown(
             radial-gradient(circle at 92% 18%, color-mix(in srgb, #bcebdc 12%, transparent), transparent 25%),
             var(--jeju-ivory);
     }
-    header[data-testid="stHeader"] {background: transparent;}
+    header[data-testid="stHeader"] {
+        height:0 !important; min-height:0 !important; background:transparent !important;
+    }
+    [data-testid="stToolbar"], [data-testid="stDecoration"],
+    [data-testid="stStatusWidget"], #MainMenu {display:none !important;}
     [data-testid="stAppViewBlockContainer"],
     .block-container {
         max-width: 1320px;
@@ -184,27 +199,38 @@ st.markdown(
         border: 0 !important;
         box-shadow:none !important;
     }
-    .st-key-brand_header [data-testid="stHorizontalBlock"] {align-items:center !important; min-height:4rem;}
-    .st-key-brand_header [data-testid="stColumn"] {display:flex !important; align-items:center !important; min-height:4rem;}
+    .st-key-brand_header [data-testid="stHorizontalBlock"] {align-items:center !important; min-height:5rem;}
+    .st-key-brand_header [data-testid="stColumn"] {display:flex !important; align-items:center !important; min-height:5rem;}
     .st-key-brand_header [data-testid="stColumn"] > [data-testid="stVerticalBlock"] {
-        width:100%; min-height:4rem; justify-content:center !important;
+        width:100%; min-height:5rem; justify-content:center !important;
     }
     .st-key-brand_header [data-testid="stElementContainer"] {margin-top:0 !important; margin-bottom:0 !important;}
     .st-key-brand_header [data-testid="stColumn"]:first-child {position:relative;}
     .st-key-header_brand_link {
         position:absolute !important; left:0 !important; top:0 !important;
-        width:20rem !important; max-width:100%; height:4rem !important; z-index:5; min-height:4rem;
+        width:20rem !important; max-width:100%; height:3.7rem !important; z-index:5; min-height:3.7rem;
     }
     .st-key-header_brand_link .stButton, .st-key-header_brand_link button {
-        width:100% !important; height:100% !important; min-height:4rem !important;
+        width:100% !important; height:100% !important; min-height:3.7rem !important;
         padding:0 !important; margin:0 !important; opacity:0; cursor:pointer;
     }
-    .st-key-brand_header [data-testid="stColumn"]:first-child:has(.st-key-header_brand_link):hover .brand-name {
-        color:#fff !important;
+    .brand, .brand-name, .brand-mark {
+        transition:transform .16s ease, color .16s ease, box-shadow .16s ease;
     }
-    .st-key-header_bookmarks .stButton > button {
+    .st-key-brand_header [data-testid="stColumn"]:first-child:has(.st-key-header_brand_link):hover .brand {
+        transform:translateY(-2px);
+    }
+    .st-key-brand_header [data-testid="stColumn"]:first-child:has(.st-key-header_brand_link):hover .brand-name {
+        color:var(--jeju-orange) !important;
+    }
+    .st-key-brand_header [data-testid="stColumn"]:first-child:has(.st-key-header_brand_link):hover .brand-mark {
+        box-shadow:0 8px 18px color-mix(in srgb, var(--jeju-orange) 38%, transparent);
+    }
+    .st-key-header_search .stButton > button,
+    .st-key-header_bookmarks .stButton > button,
+    .st-key-header_guide .stButton > button {
         min-height:4rem;
-        padding:0 .45rem !important;
+        padding:0 .3rem !important;
         border:0 !important;
         border-radius:0 !important;
         background:transparent !important;
@@ -215,16 +241,79 @@ st.markdown(
         font-weight:750 !important;
         white-space:nowrap !important; word-break:keep-all !important;
     }
-    .st-key-header_bookmarks .stButton > button p {
+    .st-key-header_search .stButton > button p,
+    .st-key-header_bookmarks .stButton > button p,
+    .st-key-header_guide .stButton > button p {
         font-family:'Pretendard',sans-serif !important;
         font-size:1.05rem !important; font-weight:750 !important; line-height:1.2 !important;
         white-space:nowrap !important; word-break:keep-all !important;
     }
+    .st-key-header_search .stButton > button:hover,
+    .st-key-header_search .stButton > button:focus,
     .st-key-header_bookmarks .stButton > button:hover,
-    .st-key-header_bookmarks .stButton > button:focus {
+    .st-key-header_bookmarks .stButton > button:focus,
+    .st-key-header_guide .stButton > button:hover,
+    .st-key-header_guide .stButton > button:focus {
         color: var(--jeju-orange-deep) !important;
         background:transparent !important;
         border-color:transparent !important;
+    }
+    .st-key-header_navigation {
+        display:block !important; width:min(100%, 18rem) !important;
+        min-height:4rem !important; margin-left:auto !important;
+    }
+    .st-key-header_navigation [data-testid="stElementContainer"] {width:100% !important; margin:0 !important;}
+    .st-key-header_navigation [data-testid="stButtonGroup"] {
+        display:flex !important; flex-flow:row nowrap !important; width:100% !important;
+        gap:.15rem !important; padding:0 !important; border:0 !important;
+        background:transparent !important;
+    }
+    .st-key-header_navigation [data-testid="stButtonGroup"] > [data-testid="stWidgetLabel"] {
+        display:none !important;
+    }
+    .st-key-header_navigation [role="radiogroup"][aria-label="헤더 메뉴"] {
+        display:flex !important; flex-flow:row nowrap !important;
+        width:100% !important; flex:1 1 100% !important;
+    }
+    .st-key-header_navigation [role="radiogroup"][aria-label="헤더 메뉴"] > button {
+        flex:1 1 0 !important; min-width:0 !important;
+    }
+    .st-key-header_navigation [data-testid="stButtonGroup"] button {
+        width:100% !important; min-width:0 !important; min-height:4rem !important;
+        padding:0 .25rem !important; border:0 !important; border-radius:0 !important;
+        background:transparent !important; box-shadow:none !important;
+        color:var(--jeju-brown) !important; white-space:nowrap !important;
+        font-family:'Pretendard',sans-serif !important; font-size:1.05rem !important;
+        font-weight:650 !important; display:flex !important; flex-flow:row nowrap !important;
+        align-items:center !important; justify-content:center !important; position:relative !important;
+    }
+    .st-key-header_navigation [role="radiogroup"][aria-label="헤더 메뉴"] > button:nth-of-type(1)::before {
+        content:'즐겨찾기'; color:inherit; position:absolute; inset:0;
+        display:flex; align-items:center; justify-content:center;
+        line-height:1; white-space:nowrap;
+    }
+    .st-key-header_navigation [role="radiogroup"][aria-label="헤더 메뉴"] > button:nth-of-type(2)::before {
+        content:'이용 안내'; color:inherit; position:absolute; inset:0;
+        display:flex; align-items:center; justify-content:center;
+        line-height:1; white-space:nowrap;
+    }
+    .st-key-header_navigation [data-testid="stButtonGroup"] button > div {
+        display:flex !important; flex-flow:row nowrap !important;
+        align-items:center !important; justify-content:center !important;
+        visibility:hidden !important;
+    }
+    .st-key-header_navigation [data-testid="stButtonGroup"] button * {
+        white-space:nowrap !important; word-break:keep-all !important;
+    }
+    .st-key-header_navigation [data-testid="stButtonGroup"] button[aria-pressed="true"],
+    .st-key-header_navigation [data-testid="stButtonGroup"] button:hover {
+        color:var(--jeju-orange-deep) !important;
+    }
+    .brand-stack {display:flex; flex-direction:column; align-items:flex-start;}
+    .search-greeting {
+        margin:0 0 .3rem; color:var(--jeju-brown);
+        font-family:'Pretendard',sans-serif; font-size:1.08rem;
+        line-height:1.35; font-weight:400; white-space:nowrap;
     }
     .home-hero {
         position: relative; overflow: hidden; padding: 3.2rem 3.4rem; border-radius: 30px;
@@ -303,11 +392,38 @@ st.markdown(
         background:#fff !important; box-shadow:0 8px 22px rgba(73,56,47,.08) !important;
     }
     .st-key-favorites_controls [data-testid="stButtonGroup"] button {
-        border:0 !important; border-radius:999px !important; background:var(--jeju-pink-soft) !important;
-        color:var(--jeju-brown) !important; font-weight:750 !important;
+        border:0 !important; border-radius:999px !important; background:#eee9e4 !important;
+        color:#8a7f78 !important; font-weight:700 !important;
     }
     .st-key-favorites_controls [data-testid="stButtonGroup"] button[aria-pressed="true"] {
         background:var(--jeju-pink) !important; color:var(--jeju-brown) !important;
+        font-weight:800 !important;
+    }
+    .st-key-favorites_controls [data-testid="stButtonGroup"] button[aria-selected="true"] {
+        background:var(--jeju-pink) !important; color:var(--jeju-brown) !important;
+        font-weight:800 !important;
+    }
+    .st-key-bookmark_category_filter_widget [data-variant="pills"] {
+        border:0 !important; border-radius:999px !important;
+        background:#eee9e4 !important; color:#8a7f78 !important;
+        font-weight:650 !important;
+    }
+    .st-key-bookmark_category_filter_widget [data-variant="pills"][aria-pressed="true"],
+    .st-key-bookmark_category_filter_widget [data-variant="pills"][data-selected="true"] {
+        background:var(--jeju-pink) !important; color:var(--jeju-brown) !important;
+        font-weight:800 !important; box-shadow:0 5px 12px rgba(247,182,200,.34) !important;
+    }
+    .st-key-header_logout button {
+        min-height:3rem !important; padding:.35rem .7rem !important;
+        border:0 !important;
+        background:linear-gradient(90deg, var(--jeju-orange), #ffad28) !important;
+        color:#fff !important; white-space:nowrap !important;
+        font-size:.9rem !important; font-weight:680 !important;
+        box-shadow:0 6px 14px rgba(255,159,28,.22) !important;
+    }
+    .st-key-header_logout button:hover {
+        color:#fff !important; transform:translateY(-1px) !important;
+        box-shadow:0 9px 18px rgba(255,159,28,.28) !important;
     }
     .result-heading {display: flex; align-items: center; gap: .7rem; margin: 1.35rem 0 .7rem; font-size: 1.55rem; font-weight: 760;}
     .search-result-heading, .favorites-result-heading {font-weight:850 !important;}
@@ -336,8 +452,51 @@ st.markdown(
     .favorite-card {min-height:175px; background:linear-gradient(145deg,#fff,var(--jeju-pink-soft));}
     div[data-testid="stVerticalBlock"][class*="st-key-place_tile_"],
     div[data-testid="stVerticalBlock"][class*="st-key-favorite_tile_"] {
-        gap:0 !important; overflow:hidden; border-radius:20px;
+        position:relative; gap:0 !important; overflow:hidden; border-radius:20px;
         box-shadow:0 10px 26px rgba(73,56,47,.10);
+    }
+    div[class*="st-key-card_bookmark_"] {
+        position:absolute !important; top:.72rem; right:.72rem; z-index:20;
+        width:2.8rem !important; min-width:2.8rem !important; margin:0 !important;
+    }
+    div[class*="st-key-card_bookmark_"] .stButton,
+    div[class*="st-key-card_bookmark_"] .stButton > button,
+    div[class*="st-key-card_bookmark_"] button {
+        width:2.8rem !important; height:2.8rem !important; min-height:2.8rem !important;
+        padding:0 !important; margin:0 !important; border-radius:999px !important;
+    }
+    div[class*="st-key-card_bookmark_"] .stButton > button,
+    div[class*="st-key-card_bookmark_"] button,
+    div[class*="st-key-card_bookmark_"] [data-testid^="stBaseButton"] {
+        border:0 !important; background:transparent !important; background-color:transparent !important;
+        color:var(--jeju-brown) !important; box-shadow:none !important;
+        font-size:1.45rem !important; font-weight:800 !important;
+        text-shadow:0 1px 4px rgba(255,255,255,.95), 0 2px 5px rgba(73,56,47,.28);
+    }
+    div[class*="st-key-card_bookmark_"] .stButton > button p,
+    div[class*="st-key-card_bookmark_"] button p {
+        font-size:1.45rem !important; line-height:1 !important;
+    }
+    div[class*="st-key-card_bookmark_"] .stButton > button:hover,
+    div[class*="st-key-card_bookmark_"] button:hover {
+        transform:scale(1.08) !important; color:#e05263 !important;
+    }
+    div[class*="st-key-card_bookmark_saved_"] .stButton > button,
+    div[class*="st-key-card_bookmark_saved_"] .stButton > button p,
+    div[class*="st-key-card_bookmark_saved_"] button,
+    div[class*="st-key-card_bookmark_saved_"] button * {
+        color:#e05263 !important;
+    }
+    div[class*="st-key-card_open_"] {
+        position:absolute !important; top:0 !important; left:0 !important; z-index:5 !important;
+        width:100% !important; height:210px !important; margin:0 !important;
+    }
+    div[class*="st-key-card_open_"] .stButton,
+    div[class*="st-key-card_open_"] button {
+        width:100% !important; height:210px !important; min-height:210px !important;
+        margin:0 !important; padding:0 !important; border:0 !important;
+        background:transparent !important; box-shadow:none !important; opacity:0 !important;
+        cursor:pointer !important;
     }
     .card-media {
         width:100%; height:210px; overflow:hidden;
@@ -395,11 +554,16 @@ st.markdown(
         padding:1rem 1.1rem; border-radius:16px; background:var(--jeju-sky-soft);
         border:0; margin-bottom:.6rem; box-shadow:0 6px 18px rgba(73,56,47,.07);
     }
+    .guide-step-card {background:var(--jeju-surface) !important;}
     .info-label {color: var(--jeju-muted); font-size: .84rem; margin-bottom: .22rem;}
     .info-value {color: var(--text-color); white-space: pre-wrap; overflow-wrap: anywhere;}
     .st-key-detail_photo [data-testid="stImage"] img {
         width:100%; height:360px; aspect-ratio:auto; object-fit:cover; border-radius:24px;
         box-shadow:0 12px 30px rgba(73,56,47,.12);
+    }
+    .photo-credit {
+        margin:.45rem .25rem 0; color:var(--jeju-muted);
+        font-family:'Pretendard',sans-serif; font-size:.76rem; text-align:right;
     }
     .detail-photo-placeholder {
         width:100%; height:360px; display:grid; place-items:center; border-radius:24px;
@@ -412,6 +576,23 @@ st.markdown(
         box-shadow:0 10px 28px rgba(73,56,47,.10);
     }
     .detail-summary-card h1 {margin:0 0 .35rem; font-size:clamp(2rem,4vw,2.8rem); font-weight:850 !important;}
+    div[data-testid="stVerticalBlock"].st-key-detail_summary {
+        margin:1rem 0 .75rem; padding:1.7rem 2rem !important; border-radius:22px;
+        background:#fff; box-shadow:0 10px 28px rgba(73,56,47,.10); gap:.45rem !important;
+    }
+    .st-key-detail_summary h1 {
+        margin:0 0 .35rem !important; font-size:clamp(2rem,4vw,2.8rem) !important;
+        font-weight:850 !important;
+    }
+    .st-key-detail_summary [data-testid="stHorizontalBlock"] {
+        max-width:21rem; gap:.55rem !important;
+    }
+    .st-key-detail_website_link a, .st-key-detail_reservation_link a {
+        width:100% !important; justify-content:center !important; min-height:2.65rem !important;
+        border:0 !important; box-shadow:0 4px 12px rgba(73,56,47,.08) !important;
+    }
+    .st-key-detail_website_link a {background:var(--jeju-yellow-soft) !important;}
+    .st-key-detail_reservation_link a {background:var(--jeju-pink-soft) !important;}
     .detail-actions {
         display:grid; grid-template-columns:repeat(2,minmax(8rem,1fr));
         gap:.55rem; width:100%; max-width:21rem; margin:.25rem 0 1rem;
@@ -426,7 +607,7 @@ st.markdown(
     .detail-mini-link:not(.disabled):hover {transform:translateY(-1px);}
     .detail-mini-link.disabled {
         background:#eee9e4; color:#aaa099 !important; box-shadow:none;
-        cursor:not-allowed; filter:saturate(.35);
+        cursor:pointer; filter:saturate(.35);
     }
     .detail-description {margin:.15rem 0 .65rem; color:var(--jeju-muted); font-size:1.05rem;}
     .detail-tags {margin-bottom:.7rem;}
@@ -487,6 +668,16 @@ st.markdown(
         background:var(--jeju-orange) !important; color:#fff !important;
         box-shadow:0 6px 14px rgba(255,159,28,.25) !important;
     }
+    .st-key-search_view_controls [role="radiogroup"] {
+        width:max-content !important; max-width:100% !important; padding-left:0 !important;
+        display:flex !important; gap:.25rem !important;
+    }
+    .st-key-search_view_controls [role="radiogroup"] label {margin-right:.2rem !important;}
+    .st-key-detail_website_missing button,
+    .st-key-detail_reservation_missing button {
+        background:#eee9e4 !important; color:#8f8580 !important;
+        border:0 !important; box-shadow:none !important;
+    }
     .st-key-favorites_lookup_panel [data-testid="stVerticalBlockBorderWrapper"] {
         background:linear-gradient(120deg,#fff,var(--jeju-pink-soft)) !important;
         border:0 !important; box-shadow:0 10px 28px rgba(73,56,47,.09) !important;
@@ -520,22 +711,84 @@ st.markdown(
         .home-hero {padding: 2rem 1.35rem 7rem;}
         .home-hero::after {right: 5%; bottom: 5%; font-size: 2.5rem;}
         .brand p {display: none;}
-        .brand-name {font-size:2rem;}
-        .brand-mark {width:2.8rem; height:2.8rem;}
-        .st-key-brand_header {padding-left:.75rem !important; padding-right:.75rem !important;}
-        .st-key-brand_header [data-testid="stHorizontalBlock"] {
-            flex-wrap:nowrap !important; gap:.65rem !important;
+        .brand-name {font-size:clamp(1.75rem, 7vw, 2.15rem);}
+        .brand-mark {width:clamp(2.45rem, 9vw, 3rem); height:clamp(2.45rem, 9vw, 3rem);}
+        .st-key-brand_header {padding-left:.35rem !important; padding-right:.35rem !important;}
+        .st-key-brand_header [data-testid="stHorizontalBlock"]:has(.brand-stack) {
+            flex-wrap:wrap !important; gap:.2rem !important; align-items:center !important;
+            min-height:auto !important;
         }
-        .st-key-brand_header [data-testid="stColumn"]:first-child {
-            flex:1 1 auto !important; width:auto !important; min-width:0 !important;
+        .st-key-brand_header [data-testid="stHorizontalBlock"]:has(.brand-stack) > [data-testid="stColumn"] {
+            min-width:0 !important;
         }
-        .st-key-brand_header [data-testid="stColumn"]:last-child {
-            flex:0 0 7.4rem !important; width:7.4rem !important; min-width:7.4rem !important;
+        .st-key-brand_header [data-testid="stHorizontalBlock"]:has(.brand-stack) > [data-testid="stColumn"]:first-child {
+            flex:1 1 100% !important; width:100% !important; min-height:3.8rem !important;
         }
+        .st-key-brand_header [data-testid="stHorizontalBlock"]:has(.brand-stack) > [data-testid="stColumn"]:last-child {
+            flex:1 1 100% !important; width:100% !important; min-height:3.4rem !important;
+        }
+        .st-key-brand_header [data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"] {
+            min-height:3.3rem !important; gap:.45rem !important; flex-wrap:nowrap !important;
+        }
+        .st-key-brand_header [data-testid="stHorizontalBlock"] [data-testid="stColumn"] {
+            min-width:0 !important; min-height:3.3rem !important;
+        }
+        .st-key-brand_header [data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] > [data-testid="stVerticalBlock"] {
+            min-height:3.2rem !important; height:3.2rem !important; justify-content:center !important;
+        }
+        .st-key-header_search, .st-key-header_bookmarks, .st-key-header_guide {
+            height:3.2rem !important; display:flex !important; align-items:center !important;
+        }
+        .st-key-header_navigation {
+            display:block !important; width:100% !important; max-width:none !important;
+            margin:0 !important; min-height:3.2rem !important;
+        }
+        .st-key-header_navigation [data-testid="stElementContainer"] {
+            width:100% !important; height:3.2rem !important; margin:0 !important;
+        }
+        .st-key-header_navigation [data-testid="stButtonGroup"] {
+            display:flex !important; flex-flow:row nowrap !important; width:100% !important;
+        }
+        .st-key-header_navigation [data-testid="stButtonGroup"] button,
+        .st-key-header_navigation [data-testid="stButtonGroup"] button p {
+            min-width:0 !important; min-height:3.2rem !important;
+            padding:0 .08rem !important; font-size:clamp(.9rem, 3.8vw, 1rem) !important;
+            line-height:1 !important; white-space:nowrap !important;
+        }
+        .st-key-header_logout button {
+            height:3.2rem !important; min-height:3.2rem !important;
+            font-size:clamp(.84rem, 3.4vw, .94rem) !important;
+            line-height:1 !important; white-space:nowrap !important;
+            word-break:keep-all !important; overflow-wrap:normal !important;
+        }
+        .st-key-header_logout button p {
+            height:auto !important; min-height:0 !important; margin:0 !important;
+            font-size:inherit !important; line-height:1 !important;
+            white-space:nowrap !important; word-break:keep-all !important;
+            overflow-wrap:normal !important;
+        }
+        .st-key-brand_header [data-testid="stColumn"]:has(.st-key-header_logout) {
+            flex:0 0 5.8rem !important; width:5.8rem !important; min-width:5.8rem !important;
+        }
+        .st-key-header_logout,
+        .st-key-header_logout [data-testid="stButton"] {
+            width:100% !important; height:3.2rem !important; margin:0 !important;
+        }
+        .st-key-header_search .stButton > button,
         .st-key-header_bookmarks .stButton > button,
+        .st-key-header_guide .stButton > button,
+        .st-key-header_search .stButton > button p,
         .st-key-header_bookmarks .stButton > button p {
-            font-size:.95rem !important;
+            font-size:.86rem !important; padding:0 .04rem !important; min-height:3.2rem !important;
         }
+        .st-key-header_guide .stButton > button p {font-size:.86rem !important;}
+        .st-key-header_search .stButton > button,
+        .st-key-header_bookmarks .stButton > button,
+        .st-key-header_guide .stButton > button {display:flex !important; align-items:center !important; justify-content:center !important;}
+        .st-key-header_search .stButton > button p,
+        .st-key-header_bookmarks .stButton > button p,
+        .st-key-header_guide .stButton > button p {margin:0 !important; line-height:1 !important;}
+        .search-greeting {font-size:1rem; margin-bottom:.25rem;}
         div[class*="st-key-place_name_"] button,
         div[class*="st-key-favorite_name_"] button,
         div[class*="st-key-place_name_"] button p,
@@ -871,7 +1124,7 @@ def initialize_state() -> None:
         "category_filter": [],
         "space_filter": [],
         "feature_filter": [],
-        "sort_order": "기본순",
+        "sort_order": "가나다순",
         "view_mode": "갤러리 보기",
         "user_latitude": None,
         "user_longitude": None,
@@ -889,10 +1142,18 @@ def initialize_state() -> None:
         "bookmark_category_picker_place_id": None,
         "bookmark_view_mode": "갤러리 보기",
         "bookmark_category_filter": "전체",
+        "navigation_epoch": 0,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+    if st.session_state.sort_order in {"기본순", "장소명순 (가나다)"}:
+        st.session_state.sort_order = "가나다순"
+    if st.session_state.get("_sort_order_widget") in {
+        "기본순",
+        "장소명순 (가나다)",
+    }:
+        st.session_state._sort_order_widget = "가나다순"
     if isinstance(st.session_state.selected_region, str):
         st.session_state.selected_region = [] if st.session_state.selected_region == "전체" else [st.session_state.selected_region]
     if isinstance(st.session_state.get("_selected_region_widget"), str):
@@ -915,10 +1176,19 @@ def initialize_state() -> None:
 
 
 def go_to(page: str, place_id: str | None = None) -> None:
+    if page != st.session_state.get("page") or place_id != st.session_state.get("selected_place_id"):
+        st.session_state.navigation_epoch += 1
     if page != "detail" or place_id != st.session_state.get("selected_place_id"):
         st.session_state.bookmark_category_picker_place_id = None
     st.session_state.page = page
     st.session_state.selected_place_id = place_id
+
+
+def logout_user() -> None:
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.session_state.page = "home"
+    st.session_state.logout_flash = True
 
 
 def select_region(region: str) -> None:
@@ -933,7 +1203,7 @@ def reset_filters() -> None:
         "category_filter": [],
         "space_filter": [],
         "feature_filter": [],
-        "sort_order": "기본순",
+        "sort_order": "가나다순",
     }
     for key, value in reset_values.items():
         st.session_state[key] = value
@@ -963,13 +1233,15 @@ def hero() -> None:
                 unsafe_allow_html=True,
             )
         else:
-            brand, bookmark_nav = st.columns([6, 1.15], vertical_alignment="center")
+            brand, navigation = st.columns([2.6, 4.8], vertical_alignment="center")
             with brand:
                 st.markdown(
                     """
-                    <div class="brand">
-                        <div class="brand-mark" role="img" aria-label="감귤, 잎, 바다 물결 로고"></div>
-                        <div class="brand-name">제주아이랑</div>
+                    <div class="brand-stack">
+                        <div class="brand">
+                            <div class="brand-mark" role="img" aria-label="감귤, 잎, 바다 물결 로고"></div>
+                            <div class="brand-name">제주아이랑</div>
+                        </div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -980,15 +1252,34 @@ def hero() -> None:
                     on_click=go_to,
                     args=("list",),
                 )
-            with bookmark_nav:
-                st.button(
-                    "♥ 즐겨찾기",
-                    key="header_bookmarks",
-                    type="tertiary",
-                    use_container_width=True,
-                    on_click=go_to,
-                    args=("bookmarks",),
-                )
+            with navigation:
+                menu_col, logout_col = st.columns([2.2, 1], vertical_alignment="center")
+                with menu_col:
+                    with st.container(key="header_navigation"):
+                        current_page = st.session_state.page
+                        selected_page = st.segmented_control(
+                            "헤더 메뉴",
+                            options=["bookmarks", "guide"],
+                            default=current_page if current_page in {"bookmarks", "guide"} else None,
+                            format_func=lambda value: {
+                                "bookmarks": "즐겨찾기",
+                                "guide": "이용 안내",
+                            }[value],
+                            key=f"header_navigation_{st.session_state.navigation_epoch}",
+                            label_visibility="collapsed",
+                            width="stretch",
+                        )
+                        if selected_page and selected_page != current_page:
+                            go_to(selected_page)
+                            st.rerun()
+                with logout_col:
+                    st.button(
+                        "로그아웃",
+                        key="header_logout",
+                        type="primary",
+                        width="stretch",
+                        on_click=logout_user,
+                    )
 
 
 def display_tags(place: pd.Series, include_region: bool = True) -> str:
@@ -1013,6 +1304,48 @@ def render_card_media(photo_url: str, placeholder: str) -> None:
     )
 
 
+def current_user_saved_place_ids() -> set[str]:
+    nickname = st.session_state.nickname.strip()
+    if not nickname:
+        return set()
+    bookmarks = load_bookmarks()
+    mine = bookmarks[nickname_mask(bookmarks, nickname)]
+    return set(mine["place_id"].fillna("").astype(str))
+
+
+def render_card_bookmark_button(place_id: str, key_prefix: str, saved: bool) -> None:
+    state_key = "saved" if saved else "empty"
+    button_key = f"card_bookmark_{state_key}_{key_prefix}_{place_id}"
+    if saved:
+        st.html(
+            f"""
+            <style>
+            .st-key-{button_key} button,
+            .st-key-{button_key} button:hover,
+            .st-key-{button_key} button:focus,
+            .st-key-{button_key} button * {{color:#e05263 !important;}}
+            </style>
+            """
+        )
+    st.button(
+        "♥" if saved else "♡",
+        key=button_key,
+        help="즐겨찾기에서 삭제" if saved else "즐겨찾기에 바로 저장",
+        on_click=toggle_current_bookmark,
+        args=(str(place_id),),
+    )
+
+
+def render_card_open_button(place_id: str, key_prefix: str) -> None:
+    st.button(
+        "상세정보 열기",
+        key=f"card_open_{key_prefix}_{place_id}",
+        help="카드를 눌러 상세정보 보기",
+        on_click=go_to,
+        args=("detail", str(place_id)),
+    )
+
+
 def format_distance(distance_km: object) -> str:
     if pd.isna(distance_km):
         return ""
@@ -1023,6 +1356,7 @@ def format_distance(distance_km: object) -> str:
 
 
 def render_place_grid(frame: pd.DataFrame, key_prefix: str, columns: int = 3) -> None:
+    saved_place_ids = current_user_saved_place_ids()
     for start in range(0, len(frame), columns):
         row_columns = st.columns(columns)
         for offset, (_, place) in enumerate(frame.iloc[start : start + columns].iterrows()):
@@ -1040,6 +1374,12 @@ def render_place_grid(frame: pd.DataFrame, key_prefix: str, columns: int = 3) ->
                 photo_url = clean_text(place.get("photo_url"), "")
                 with st.container(key=f"place_tile_{key_prefix}_{place['place_id']}"):
                     render_card_media(photo_url, "🍊")
+                    render_card_bookmark_button(
+                        str(place["place_id"]),
+                        key_prefix,
+                        str(place["place_id"]) in saved_place_ids,
+                    )
+                    render_card_open_button(str(place["place_id"]), key_prefix)
                     with st.container(key=f"place_card_{key_prefix}_{place['place_id']}", height=240):
                         st.markdown(f'<div>{display_tags(place)}</div>', unsafe_allow_html=True)
                         st.button(
@@ -1148,7 +1488,7 @@ def filter_places(places: pd.DataFrame) -> pd.DataFrame:
         if selected:
             result = result[result[column].isin(selected)]
 
-    # Every selected convenience/use condition must match (AND).
+    # Every selected convenience/use condition must match.
     for label in st.session_state.feature_filter:
         if label == PARKING_FEATURE_LABEL:
             result = result[result["parking"].isin(["무료", "유료", "무료/유료 주차"])]
@@ -1168,10 +1508,10 @@ def filter_places(places: pd.DataFrame) -> pd.DataFrame:
 
     if st.session_state.sort_order == "거리순" and "_distance_km" in result.columns:
         result = result.sort_values("_distance_km", ascending=True, kind="stable", na_position="last")
-    elif st.session_state.sort_order == "장소명순 (가나다)":
+    elif st.session_state.sort_order == "가나다순":
         result = result.sort_values("place_name", ascending=True, kind="stable", na_position="last")
     else:
-        result = result.sort_values("_data_order", kind="stable")
+        result = result.sort_values("place_name", ascending=True, kind="stable", na_position="last")
     return result
 
 
@@ -1211,10 +1551,10 @@ def forget_location() -> None:
     st.session_state.user_location_accuracy = None
     st.session_state.ignore_location_result = True
     if st.session_state.sort_order == "거리순":
-        st.session_state.sort_order = "기본순"
+        st.session_state.sort_order = "가나다순"
         widget_key = "_sort_order_widget"
         if widget_key in st.session_state:
-            st.session_state[widget_key] = "기본순"
+            st.session_state[widget_key] = "가나다순"
 
 
 def reuse_location() -> None:
@@ -1361,6 +1701,11 @@ def render_place_map(
 
 
 def render_list(places: pd.DataFrame) -> None:
+    nickname = escape(st.session_state.nickname.strip() or "여행자")
+    st.markdown(
+        f'<div class="search-greeting">안녕하세요,&nbsp;{nickname} 님!</div>',
+        unsafe_allow_html=True,
+    )
     st.markdown('<div class="page-title search-page-title">아이와 어디로 떠나볼까요?</div>', unsafe_allow_html=True)
     st.caption("조건을 선택하면 우리 가족에게 맞는 장소를 찾아드려요.")
 
@@ -1421,7 +1766,7 @@ def render_list(places: pd.DataFrame) -> None:
                 format_func=lambda value: f"{category_icon_map[value]} {value}",
             )
         with feature_col:
-            st.markdown("**편의시설 · 이용조건** · 선택한 조건 모두 충족 (AND)")
+            st.markdown("**편의시설 · 이용조건** · 선택한 조건 모두 충족")
             feature_icons = {
                 "입장료 없음": "🆓", "연령제한 없음": "👨‍👩‍👧",
                 "수유실 있음": "🍼", "유모차 대여 가능": "🛒",
@@ -1442,20 +1787,21 @@ def render_list(places: pd.DataFrame) -> None:
             render_location_control()
         st.button("필터 초기화 ↻", key="main_filter_reset", on_click=reset_filters)
 
-    sort_col, view_col = st.columns([1, 2], vertical_alignment="bottom")
+    sort_col, view_col = st.columns([1, 1.35], vertical_alignment="bottom")
     with sort_col:
         st.session_state.sort_order = st.selectbox(
             "정렬",
-            ["기본순", "장소명순 (가나다)", "거리순"],
+            ["가나다순", "거리순"],
             key=prepare_filter_widget("sort_order"),
         )
     with view_col:
-        st.session_state.view_mode = st.radio(
-            "보기 형식",
-            ["갤러리 보기", "표로 보기", "지도 보기"],
-            horizontal=True,
-            key=prepare_filter_widget("view_mode"),
-        )
+        with st.container(key="search_view_controls"):
+            st.session_state.view_mode = st.radio(
+                "보기 형식",
+                ["갤러리 보기", "표로 보기", "지도 보기"],
+                horizontal=True,
+                key=prepare_filter_widget("view_mode"),
+            )
 
     if st.session_state.sort_order == "거리순" and st.session_state.user_latitude is None:
         st.warning("거리순을 사용하려면 필터의 ‘내 위치’에서 위치를 허용해 주세요.")
@@ -1503,6 +1849,65 @@ def yes_no_unknown(value: object, yes: str = "있음", no: str = "없음") -> st
     if pd.isna(value):
         return "정보 없음"
     return yes if bool(value) else no
+
+
+def bookmarks_csv_data(bookmarks: pd.DataFrame, places: pd.DataFrame) -> bytes:
+    """Create a user-facing favorites CSV without internal IDs."""
+    export_frame = bookmarks.merge(
+        places.drop(columns=["_data_order", "_distance_km"], errors="ignore"),
+        on="place_id",
+        how="left",
+        suffixes=("_bookmark", ""),
+    )
+    boolean_labels = {
+        "has_admission_fee": ("유료", "무료"),
+        "has_age_limit": ("있음", "없음"),
+        "nursing_room": ("있음", "없음"),
+        "stroller_rental": ("가능", "불가"),
+        "resident_discount": ("있음", "없음"),
+        "diaper_changing_table": ("있음", "없음"),
+    }
+    for column, (yes, no) in boolean_labels.items():
+        if column in export_frame.columns:
+            export_frame[column] = export_frame[column].map(
+                lambda value: yes_no_unknown(value, yes=yes, no=no)
+            )
+    column_labels = {
+        "place_name": "장소명",
+        "category": "시설유형",
+        "region_group": "지역",
+        "city_name": "시군구",
+        "legal_dong_name": "읍면동",
+        "road_address": "도로명주소",
+        "latitude": "위도",
+        "longitude": "경도",
+        "space_type": "실내외",
+        "parking": "주차정보",
+        "phone": "전화번호",
+        "website_url": "홈페이지",
+        "closed_days": "휴무일",
+        "opening_hours": "운영시간",
+        "has_admission_fee": "입장료",
+        "admission_fee_detail": "이용요금 상세",
+        "has_age_limit": "연령제한",
+        "age_limit_detail": "연령제한 상세",
+        "nursing_room": "수유실",
+        "stroller_rental": "유모차 대여",
+        "resident_discount": "도민 할인",
+        "diaper_changing_table": "기저귀 교환대",
+        "reservation_url": "예약 링크",
+        "photo_url": "사진 URL",
+        "description": "한 줄 설명",
+        "review_summary": "방문 참고사항",
+        "custom_category": "나만의 카테고리",
+        "memo": "메모",
+        "created_at": "저장일시",
+    }
+    selected_columns = [
+        column for column in column_labels if column in export_frame.columns
+    ]
+    export_frame = export_frame[selected_columns].rename(columns=column_labels)
+    return export_frame.to_csv(index=False).encode("utf-8-sig")
 
 
 def info_box(label: str, value: object) -> None:
@@ -1721,6 +2126,11 @@ def render_detail(places: pd.DataFrame) -> None:
     with st.container(key="detail_photo"):
         if photo_url:
             st.image(photo_url, use_container_width=True)
+            if "visitkorea.or.kr" in photo_url.lower():
+                st.markdown(
+                    '<div class="photo-credit">사진 제공: 한국관광공사 관광사진갤러리</div>',
+                    unsafe_allow_html=True,
+                )
         else:
             st.markdown('<div class="detail-photo-placeholder">NO IMAGE AVAILABLE</div>', unsafe_allow_html=True)
 
@@ -1734,47 +2144,62 @@ def render_detail(places: pd.DataFrame) -> None:
         else clean_text(place.get("age_limit_detail"), "연령제한 있음")
     )
     parking_icon, parking_value = parking_detail(place.get("parking"))
-    rows = "".join([
+    detail_rows = [
         detail_row("📍", "위치", place.get("road_address")),
         detail_row("🕘", "운영시간", place.get("opening_hours")),
-        detail_row("₩", "이용 요금", admission_value),
+        detail_row("🍊", "이용 요금", admission_value),
         detail_row("☺", "연령제한", age_value),
         detail_row(parking_icon, "주차 가능 여부", parking_value),
-    ])
+        detail_row(
+            "🏷️",
+            "도민 할인",
+            yes_no_unknown(
+                place.get("resident_discount"),
+                yes="도민 할인 가능",
+                no="도민 할인 없음",
+            ),
+        ),
+    ]
+    rows = "".join(detail_rows)
     website = clean_text(place.get("website_url"), "")
     reservation = clean_text(place.get("reservation_url"), "")
-    if website.startswith(("http://", "https://")):
-        website_action = (
-            f'<a class="detail-mini-link" href="{escape(website, quote=True)}" '
-            'target="_blank" rel="noopener noreferrer">🌐 홈페이지</a>'
+    with st.container(key="detail_summary"):
+        st.markdown(f'<div class="detail-tags">{display_tags(place)}</div>', unsafe_allow_html=True)
+        st.markdown(f"# {clean_text(place.get('place_name'))}")
+        st.markdown(
+            f'<p class="detail-description">{escape(description)}</p>',
+            unsafe_allow_html=True,
         )
-    else:
-        website_action = (
-            '<span class="detail-mini-link disabled" aria-disabled="true" '
-            'title="등록된 홈페이지가 없습니다">🌐 홈페이지</span>'
-        )
-    if reservation.startswith(("http://", "https://")):
-        reservation_action = (
-            f'<a class="detail-mini-link reserve" href="{escape(reservation, quote=True)}" '
-            'target="_blank" rel="noopener noreferrer">🎟 예약하기</a>'
-        )
-    else:
-        reservation_action = (
-            '<span class="detail-mini-link reserve disabled" aria-disabled="true" '
-            'title="등록된 예약 링크가 없습니다">🎟 예약하기</span>'
-        )
-    st.markdown(
-        f"""
-        <section class="detail-summary-card">
-            <div class="detail-tags">{display_tags(place)}</div>
-            <h1>{escape(clean_text(place.get('place_name')))}</h1>
-            <p class="detail-description">{escape(description)}</p>
-            <div class="detail-actions">{website_action}{reservation_action}</div>
-            <div>{rows}</div>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
+        website_col, reservation_col = st.columns(2)
+        with website_col:
+            if website.startswith(("http://", "https://")):
+                st.link_button(
+                    "🌐 홈페이지",
+                    website,
+                    key="detail_website_link",
+                    use_container_width=True,
+                )
+            elif st.button(
+                "🌐 홈페이지",
+                key="detail_website_missing",
+                use_container_width=True,
+            ):
+                st.toast("등록된 홈페이지 링크가 없어요.", icon="ℹ️")
+        with reservation_col:
+            if reservation.startswith(("http://", "https://")):
+                st.link_button(
+                    "🎟 예약하기",
+                    reservation,
+                    key="detail_reservation_link",
+                    use_container_width=True,
+                )
+            elif st.button(
+                "🎟 예약하기",
+                key="detail_reservation_missing",
+                use_container_width=True,
+            ):
+                st.toast("등록된 예약 링크가 없어요.", icon="ℹ️")
+        st.markdown(f"<div>{rows}</div>", unsafe_allow_html=True)
 
     saved = current_place_is_saved(place_id)
     save_button_background = "#f7b6c8" if saved else "#ff9f1c"
@@ -1864,12 +2289,6 @@ def render_detail(places: pd.DataFrame) -> None:
                 ):
                     st.session_state.bookmark_category_picker_place_id = None
                     st.rerun()
-    flash = st.session_state.pop("bookmark_flash", None)
-    if flash:
-        kind, message = flash
-        toast_icons = {"success": "💖", "info": "💨", "error": "🚫"}
-        st.toast(message, icon=toast_icons.get(kind, "🍊"))
-
     point_items = []
     if pd.notna(place.get("nursing_room")) and bool(place.get("nursing_room")):
         point_items.append("수유실을 이용할 수 있어요")
@@ -2002,6 +2421,9 @@ def render_bookmarks(places: pd.DataFrame) -> None:
     category_options = bookmark_category_options(mine)
     if st.session_state.bookmark_category_filter not in category_options:
         st.session_state.bookmark_category_filter = "전체"
+    category_widget_key = "bookmark_category_filter_widget"
+    if st.session_state.get(category_widget_key) not in category_options:
+        st.session_state[category_widget_key] = st.session_state.bookmark_category_filter
 
     with st.container(key="favorites_controls"):
         category_control, view_control = st.columns([2, 1], vertical_alignment="bottom")
@@ -2010,7 +2432,7 @@ def render_bookmarks(places: pd.DataFrame) -> None:
             selected_category = st.pills(
                 "나만의 카테고리",
                 category_options,
-                key="bookmark_category_filter",
+                key=category_widget_key,
                 label_visibility="collapsed",
             )
         with view_control:
@@ -2022,15 +2444,8 @@ def render_bookmarks(places: pd.DataFrame) -> None:
             )
 
     selected_category = selected_category or "전체"
+    st.session_state.bookmark_category_filter = selected_category
     filtered_mine = filter_bookmarks_by_category(mine, selected_category)
-    safe_download_columns = [
-        "bookmark_id",
-        "nickname",
-        "place_id",
-        "created_at",
-        "custom_category",
-        "memo",
-    ]
     joined = filtered_mine.merge(
         places, on="place_id", how="left", suffixes=("_bookmark", "")
     )
@@ -2040,9 +2455,10 @@ def render_bookmarks(places: pd.DataFrame) -> None:
     )
     st.download_button(
         "내 즐겨찾기 CSV 내려받기",
-        data=mine[safe_download_columns].to_csv(index=False).encode("utf-8-sig"),
+        data=bookmarks_csv_data(mine, places),
         file_name=f"{normalized}_bookmarks.csv",
         mime="text/csv",
+        help="장소 정보·카테고리·메모를 내려받습니다.",
     )
 
     if joined.empty:
@@ -2065,6 +2481,11 @@ def render_bookmarks(places: pd.DataFrame) -> None:
                 photo_url = clean_text(place.get("photo_url"), "")
                 with st.container(key=f"favorite_tile_{place['bookmark_id']}"):
                     render_card_media(photo_url, "♥")
+                    if pd.notna(place.get("place_name")):
+                        render_card_open_button(
+                            str(place["place_id"]),
+                            f"favorite_{place['bookmark_id']}",
+                        )
                     with st.container(key=f"favorite_card_{place['bookmark_id']}", height=240):
                         st.markdown(f'<div>{display_tags(place)}</div>', unsafe_allow_html=True)
                         place_name = clean_text(place.get("place_name"), "삭제되었거나 찾을 수 없는 장소")
@@ -2187,10 +2608,53 @@ def render_bookmarks(places: pd.DataFrame) -> None:
                             st.rerun()
 
 
+def render_guide() -> None:
+    st.markdown(
+        """
+        <div class="favorites-intro">
+            <div><div class="page-title favorites-title">제주아이랑 이용 안내</div>
+            <p>우리 가족에게 맞는 제주 나들이 장소를 찾고 저장하는 방법을 확인해 보세요.</p></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    steps = [
+        ("1", "조건을 선택해요", "지역·공간·시설유형과 필요한 편의시설을 여러 개 선택할 수 있어요."),
+        ("2", "장소를 비교해요", "갤러리·표·지도 보기로 바꾸고 장소명을 누르면 상세정보가 열려요."),
+        ("3", "하트로 바로 저장해요", "목록의 사진 오른쪽 위 ♡를 누르면 미분류 즐겨찾기에 바로 담겨요."),
+        ("4", "우리 가족 방식으로 정리해요", "즐겨찾기에서 카테고리와 메모를 지정하고 지도에서도 확인할 수 있어요."),
+    ]
+    for start in range(0, len(steps), 2):
+        columns = st.columns(2)
+        for column, (number, title, description) in zip(columns, steps[start : start + 2]):
+            with column:
+                st.markdown(
+                    f"""
+                    <div class="info-box guide-step-card" style="margin-bottom:1rem; min-height:9rem;">
+                        <div class="info-label" style="color:var(--jeju-orange-deep);">{number}단계</div>
+                        <div class="info-value" style="font-size:1.15rem; font-weight:850; margin:.35rem 0;">{escape(title)}</div>
+                        <div style="color:var(--jeju-muted); line-height:1.6;">{escape(description)}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+
+def show_bookmark_flash() -> None:
+    flash = st.session_state.pop("bookmark_flash", None)
+    if flash:
+        kind, message = flash
+        toast_icons = {"success": "💖", "info": "💨", "error": "🚫"}
+        st.toast(message, icon=toast_icons.get(kind, "🍊"))
+
+
 def main() -> None:
     initialize_state()
     places = get_places()
     hero()
+    if st.session_state.pop("logout_flash", False):
+        st.toast("로그아웃했어요. 다음에 또 만나요!", icon="👋")
+    show_bookmark_flash()
     page = st.session_state.page
     if page == "home":
         render_home(places)
@@ -2200,6 +2664,8 @@ def main() -> None:
         render_detail(places)
     elif page == "bookmarks":
         render_bookmarks(places)
+    elif page == "guide":
+        render_guide()
     else:
         st.session_state.page = "home"
         st.rerun()

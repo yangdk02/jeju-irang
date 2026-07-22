@@ -143,6 +143,15 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🍊 제주아이랑 검수')
     .addItem('선택 행 승인·반영', 'approveAndSyncSelectedRequest')
+    .addSeparator()
+    .addItem(
+      '전체 관광정보 업데이트·CSV 생성',
+      'startAllTourDataUpdateAndExport'
+    )
+    .addItem(
+      'TourAPI 사진 업데이트·CSV 생성',
+      'startTourApiPhotoUpdateAndExport'
+    )
     .addToUi();
 }
 
@@ -747,6 +756,7 @@ function exportJejuIrangCsv() {
     [CSV_SYNC_CONFIG.LATEST_EXPORT_URL_PROPERTY]: file.getUrl(),
   });
   Logger.log('최종 CSV: %s', file.getUrl());
+  return file;
 }
 
 function showLatestJejuIrangExportLink() {
@@ -1311,8 +1321,20 @@ function csvSyncEnsureStructuredSheet_(spreadsheet, name, headers, color) {
   if (!hasHeaders) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   } else {
-    const current = existing.slice(0, headers.length);
-    if (JSON.stringify(current) !== JSON.stringify(headers)) {
+    const populatedLength = existing.reduce(function (last, header, index) {
+      return header ? index + 1 : last;
+    }, 0);
+    const current = existing.slice(0, populatedLength);
+    const isExact = JSON.stringify(current) === JSON.stringify(headers);
+    const isLegacyPrefix =
+      current.length < headers.length &&
+      JSON.stringify(current) === JSON.stringify(headers.slice(0, current.length));
+    if (isLegacyPrefix) {
+      const missingHeaders = headers.slice(current.length);
+      sheet
+        .getRange(1, current.length + 1, 1, missingHeaders.length)
+        .setValues([missingHeaders]);
+    } else if (!isExact) {
       throw new Error(name + ' 시트의 헤더 순서가 설계와 다릅니다.');
     }
   }
