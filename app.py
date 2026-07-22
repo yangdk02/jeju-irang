@@ -2631,6 +2631,7 @@ def filter_bookmarks_by_category(
 
 
 def render_bookmarks(places: pd.DataFrame) -> None:
+    st.button("← 장소 목록으로", on_click=go_to, args=("list",), type="tertiary")
     st.markdown(
         """
         <div class="favorites-intro">
@@ -2861,6 +2862,7 @@ def render_bookmarks(places: pd.DataFrame) -> None:
 
 
 def render_guide() -> None:
+    st.button("← 장소 목록으로", on_click=go_to, args=("list",), type="tertiary")
     st.markdown(
         """
         <div class="favorites-intro">
