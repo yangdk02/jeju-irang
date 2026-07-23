@@ -211,7 +211,7 @@ VWORLD_API_KEY=
 
 ## 관련 문서
 
-- [기획 배경과 근거](docs/planning_background.md): 대상 사용자, 문제 정의, 통계 그래프, 핵심 가설과 메시지
+- [기획 배경과 근거](docs/planning_background.md): 문제 정의, 통계 근거, 페르소나와 핵심 기능
 - [최종 데이터 스키마](docs/data_schema.md): 장소 데이터의 전체 컬럼, 형식, 의미와 누락 시 동작
 - [검수자 매뉴얼](docs/reviewer_manual.md): 장소 제안 검수, 데이터 갱신과 CSV 반영 절차
 - [유지보수 설정 안내](docs/maintenance_setup.md): Google Form, API, Google Sheets와 즐겨찾기 저장소의 최초 설정·복구 절차
