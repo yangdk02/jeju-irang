@@ -70,6 +70,31 @@
 3. 검색 결과에서 장소의 사진과 주요 정보를 확인합니다.
 4. 마음에 드는 장소를 저장하고 카테고리와 메모로 정리합니다.
 
+## 장소 제안 및 정보 수정
+
+찾고 싶은 장소가 아직 등록되어 있지 않거나 기존 장소의 정보가 달라졌다면 Google Form으로 알려주세요.
+
+- [➕ 새로운 장소 제안하기](https://docs.google.com/forms/d/e/1FAIpQLScWaSaRHmlN10z12s1UoRGjYmcDJTLtbBgTVni1_CI-RA6FFA/viewform?usp=pp_url&entry.1768196504=%EC%83%88%EB%A1%9C%EC%9A%B4+%EC%9E%A5%EC%86%8C+%EC%A0%9C%EC%95%88)
+- [✏️ 기존 장소 정보 수정 제안하기](https://docs.google.com/forms/d/e/1FAIpQLScWaSaRHmlN10z12s1UoRGjYmcDJTLtbBgTVni1_CI-RA6FFA/viewform?entry.1768196504=%EA%B8%B0%EC%A1%B4+%EC%9E%A5%EC%86%8C+%EC%88%98%EC%A0%95)
+
+장소 목록 아래의 **장소 제안하기** 또는 각 장소 상세 화면의 **장소 정보 수정 제안**을 이용할 수도 있습니다. 상세 화면에서 수정 Form을 열면 장소명과 위치 정보가 자동으로 입력되어 더 간편하게 제안할 수 있습니다.
+
+제출한 내용은 바로 공개되지 않습니다. 장소와 위치 정보를 확인한 뒤 승인된 내용만 서비스 데이터에 반영합니다.
+
+### 장소 제안 및 수정 연결 구조
+
+```mermaid
+flowchart LR
+    user["사용자"] -->|"장소 제안·수정"| app["제주아이랑 앱"]
+    app -->|"링크 열기"| form["Google Form"]
+    form -->|"응답 저장"| queue["Google Sheets<br/>검수 대기 목록"]
+    queue -->|"내용 확인·승인"| master["관리·검수 데이터<br/>Google Sheets"]
+    master -->|"CSV 내보내기"| csv["data/jeju-irang.csv"]
+    csv -->|"배포 후 반영"| app
+```
+
+제안 내용은 검수 대기 목록에 저장됩니다. 관리자가 확인하고 승인한 내용만 관리 데이터와 새 `jeju-irang.csv`에 반영되며, 앱을 다시 배포한 뒤 사용자에게 공개됩니다.
+
 ## 현재 제공하는 정보
 
 현재 제주 지역의 관광지, 체험 공간, 박물관, 공연·문화시설 등 **260곳**의 정보를 제공하고 있습니다.
@@ -95,12 +120,34 @@
 
 | 정보 | 주요 컬럼 |
 |---|---|
-| 장소 기본정보 | `place_id`, `place_name`, `category`, `description` |
+| 장소 기본정보 | `place_id`, `place_name`, `category`, `space_type`, `description` |
 | 지역과 위치 | `city_name`, `region_group`, `road_address`, `latitude`, `longitude` |
 | 운영정보 | `opening_hours`, `closed_days`, `parking`, `phone` |
 | 이용조건 | `has_admission_fee`, `admission_fee_detail`, `has_age_limit`, `age_limit_detail` |
-| 가족 편의정보 | `nursing_room`, `stroller_rental`, `diaper_changing_table`, `space_type`, `resident_discount` |
+| 가족 편의정보 | `nursing_room`, `stroller_rental`, `diaper_changing_table`, `resident_discount` |
 | 링크와 이미지 | `website_url`, `reservation_url`, `photo_url` |
+
+전체 컬럼의 형식, 의미, 누락 시 동작은 [최종 데이터 스키마](docs/data_schema.md)에서 확인할 수 있습니다.
+
+### 데이터와 API 구조
+
+```mermaid
+flowchart LR
+    user["사용자"] <--> app["제주아이랑 앱"]
+
+    culture["한국문화정보원<br/>가족 유아 동반 문화시설 데이터"] --> master["관리·검수 데이터<br/>Google Sheets"]
+    vworld["VWorld<br/>검색 API 2.0<br/>주소·위도·경도"] --> master
+    tour["한국관광공사<br/>국문 관광정보 서비스_GW<br/>KorService2"] --> master
+    photo["한국관광공사<br/>관광사진 정보_GW"] --> master
+
+    master -->|"검수 후 CSV 내보내기"| places["메인 장소 데이터<br/>data/jeju-irang.csv<br/>PK: place_id"]
+    places -->|"검색·필터·상세정보"| app
+
+    app <-->|"즐겨찾기 읽기·쓰기"| bookmarks["Google Drive 비공개 Google Sheets<br/>bookmarks 워크시트<br/>PK: bookmark_id · FK: place_id"]
+    places -. "place_id로 1:N 연결" .-> bookmarks
+```
+
+데이터 보강 API는 장소 데이터를 관리할 때 사용하며, 사용자가 앱에서 장소를 검색할 때 API를 직접 호출하지 않습니다. 메인 장소 정보는 `jeju-irang.csv`에서 읽고, 즐겨찾기는 Google Drive의 비공개 Google Sheets에 저장합니다.
 
 ### 다음 일정 추천 규칙
 
@@ -113,7 +160,10 @@
 
 기본 장소 및 가족 편의정보는 한국문화정보원의 「전국 가족 유아 동반 가능 문화시설 위치 데이터」를 활용했습니다. 장소의 관광정보는 한국관광공사의 「국문 관광정보 서비스_GW」로 보강했으며, 대표 이미지는 「관광사진 정보_GW」를 활용했습니다.
 
+지역과 위치 정보는 VWorld의 [검색 API 2.0](https://www.vworld.kr/dev/v4dv_search2_s001.do)을 사용해 보강했습니다.
+
 - [한국문화정보원 전국 가족 유아 동반 가능 문화시설 위치 데이터](https://www.data.go.kr/data/15111391/fileData.do)
+- [VWorld 검색 API 2.0](https://www.vworld.kr/dev/v4dv_search2_s001.do)
 - [한국관광공사 국문 관광정보 서비스_GW](https://www.data.go.kr/data/15101578/openapi.do)
 - [한국관광공사 관광사진 정보_GW](https://www.data.go.kr/data/15101914/openapi.do)
 
@@ -130,6 +180,7 @@
 ## 향후 계획
 
 - 부족한 장소 사진과 가족 편의시설 정보를 지속적으로 보강할 예정입니다.
+- 제주특별자치도관광협회의 [관광지 입장요금표](https://www.visitjeju.or.kr/issue/spots.htm)를 활용해 장소별 입장료와 이용요금 정보를 보강할 계획입니다.
 - 사용자 이용 데이터를 바탕으로 인기 있는 장소를 쉽게 찾을 수 있는 기능을 추가할 계획입니다.
 - 제주에서 시작해 **전국의 아이 동반 장소를 찾을 수 있는 서비스로 확대**할 계획입니다.
 
@@ -158,7 +209,9 @@ VWORLD_API_KEY=
 - `TOUR_API_SERVICE_KEY`: 공공데이터포털 일반 인증키(Decoding)
 - `VWORLD_API_KEY`: VWorld 공간정보 오픈플랫폼 인증키
 
-## 운영 문서
+## 관련 문서
 
+- [기획 배경과 근거](docs/planning_background.md): 대상 사용자, 문제 정의, 통계 그래프, 핵심 가설과 메시지
+- [최종 데이터 스키마](docs/data_schema.md): 장소 데이터의 전체 컬럼, 형식, 의미와 누락 시 동작
 - [검수자 매뉴얼](docs/reviewer_manual.md): 장소 제안 검수, 데이터 갱신과 CSV 반영 절차
 - [유지보수 설정 안내](docs/maintenance_setup.md): Google Form, API, Google Sheets와 즐겨찾기 저장소의 최초 설정·복구 절차

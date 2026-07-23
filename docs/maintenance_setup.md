@@ -104,13 +104,10 @@ JEJU_IRANG_SPREADSHEET_ID = 기준 Spreadsheet ID
 bookmark_id,nickname,place_id,created_at,password_salt,password_hash,memo,custom_category
 ```
 
-기존 `data/bookmarks.csv`를 한 번 이전해야 한다면 프로젝트 루트에서 다음 도구를 실행합니다.
-
-```powershell
-streamlit run scripts/migrate_bookmarks_to_gsheet.py
-```
-
-이전 전 CSV 백업을 내려받고, Google Sheet가 비어 있는지 확인한 뒤 한 번만 실행합니다. 이전 건수와 Sheet 행 수가 같은지 확인합니다.
+기존 `data/bookmarks.csv`를 한 번 이전해야 한다면 먼저 CSV 백업을 만든 뒤,
+Google Sheets의 `bookmarks` 시트에 위 컬럼 순서대로 가져옵니다. 기존 시트가
+비어 있는지 확인한 후 가져오고, 완료 뒤에는 CSV 행 수와 Sheet의 데이터 행 수가
+같은지 확인합니다.
 
 저장소 선택 규칙은 다음과 같습니다.
 
