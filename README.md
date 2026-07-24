@@ -4,6 +4,8 @@
 
 ### [👉 제주아이랑 바로 이용하기](https://jeju-irang.streamlit.app/)
 
+### [📑 제주아이랑 발표자료 보기](docs/jeju-irang_PPT.pdf)
+
 ![제주아이랑 사용 화면](assets/social-carousel-v2/carousel-preview.png)
 
 ## 제주아이랑은 어떤 서비스인가요?
